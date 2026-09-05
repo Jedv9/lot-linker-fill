@@ -399,6 +399,19 @@
     return parts.join(" | ");
   }
 
+  // Facebook vehicle create: Year/Make are already chosen. Model is a text field.
+  function buildModelLine(pack) {
+    const name = [pack.model, pack.trim].map(text).filter(Boolean).join(" ");
+    const spec = keySpec(pack);
+    const price = formatPrice(pack.price);
+    const parts = [];
+    if (name) parts.push(name);
+    if (spec) parts.push(spec);
+    parts.push(`$${price}`);
+    parts.push(CITY_TITLE);
+    return parts.join(" | ");
+  }
+
   function buildDescription(pack) {
     const type = vehicleType(pack);
     const price = formatPrice(pack.price);
@@ -434,16 +447,21 @@
     const p = pack || {};
     return {
       title: buildTitle(p),
+      modelLine: buildModelLine(p),
       body: buildDescription(p),
     };
   }
+
+  const packToListing = fromPack;
 
   return {
     CITY,
     CITY_TITLE,
     buildTitle,
+    buildModelLine,
     buildDescription,
     fromPack,
+    packToListing,
     fromPackAsync,
     researchPack,
     needsResearch,

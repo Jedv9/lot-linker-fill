@@ -46,7 +46,26 @@ function assertLayout(body) {
   );
 }
 
+const raptorPack = pack("PU1392");
+assert.equal(
+  listing.buildModelLine(raptorPack),
+  "F-150 SVT Raptor | 4WD | $26,900 | Oconomowoc WI"
+);
+assert.doesNotMatch(listing.buildModelLine(raptorPack), /2012|Ford/);
+assert.equal(
+  listing.buildTitle(raptorPack),
+  "2012 Ford F-150 SVT Raptor | 4WD | $26,900 | Oconomowoc WI"
+);
+const raptorListing = listing.packToListing(raptorPack);
+assert.equal(raptorListing.modelLine, "F-150 SVT Raptor | 4WD | $26,900 | Oconomowoc WI");
+assert.match(raptorListing.body, /Wisconsin shoppers looking for a truck under \$26,900:/);
+assert.match(raptorListing.body, /2012 Ford F-150 is available at Boucher Lake Country Nissan/);
+assert.ok(raptorListing.body.includes("\n\n"), "description must keep blank lines");
+assertLayout(raptorListing.body);
+
 const nissan = listing.fromPack(pack("26NU0143"));
+assert.equal(nissan.modelLine, "Altima 2.5 SR | AWD | $30,470 | Oconomowoc WI");
+assert.doesNotMatch(nissan.modelLine, /2026|Nissan/);
 assert.equal(nissan.title, "2026 Nissan Altima 2.5 SR | AWD | $30,470 | Oconomowoc WI");
 assert.deepEqual(bullets(nissan.body), [
   "Apple CarPlay / Android Auto",
@@ -59,6 +78,7 @@ assert.doesNotMatch(nissan.body, /Bluetooth|Satellite Radio|Gasoline|Automatic t
 assertLayout(nissan.body);
 
 const hyundai = listing.fromPack(pack("25HY024"));
+assert.equal(hyundai.modelLine, "Elantra Hybrid Limited | FWD | $29,695 | Oconomowoc WI");
 assert.equal(hyundai.title, "2025 Hyundai Elantra Hybrid Limited | FWD | $29,695 | Oconomowoc WI");
 assert.deepEqual(bullets(hyundai.body), [
   "Heated Front Seats",
