@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Lot Linker fill fixture</title>
+  <style>
+    body { font: 14px/1.4 system-ui, sans-serif; max-width: 760px; margin: 24px auto; color: #0f172a; }
+    label { display: block; font-weight: 600; margin: 12px 0 4px; }
+    input, textarea, [contenteditable] { width: 100%; box-sizing: border-box; padding: 8px; font: inherit; }
+    [contenteditable] { min-height: 220px; border: 1px solid #94a3b8; white-space: pre-wrap; }
+    .row { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+    button { padding: 8px 12px; font-weight: 600; }
+    #status { color: #0369a1; min-height: 1.2em; }
+    .warn { color: #b45309; }
+  </style>
+</head>
+<body>
+  <h1>Marketplace create listing (fixture)</h1>
+  <p class="warn">Uses the real content-script fill. Only Title and Description should change. Price and VIN must stay empty.</p>
+  <div class="row">
+    <button id="fillNissan" type="button">Fill Nissan 26NU0143</button>
+    <button id="fillHyundai" type="button">Fill Hyundai 25HY024</button>
+  </div>
+  <div id="status"></div>
+  <label for="title">Title</label>
+  <input id="title" aria-label="Title" />
+  <label for="price">Price</label>
+  <input id="price" aria-label="Price" />
+  <label for="vin">VIN</label>
+  <input id="vin" aria-label="Vehicle identification VIN" />
+  <label for="description">Description</label>
+  <textarea id="description" aria-label="Description" rows="16"></textarea>
+  <script src="../listing-copy.js?v=buyer-features"></script>
+  <script src="../content-fb.js"></script>
+  <script>
+    function snapshot() {
+      return {
+        title: document.getElementById("title").value,
+        description: document.getElementById("description").value,
+        price: document.getElementById("price").value,
+        vin: document.getElementById("vin").value,
+      };
+    }
+
+    function runFill(pack, label) {
+      document.getElementById("title").value = "";
+      document.getElementById("description").value = "";
+      document.getElementById("price").value = "";
+      document.getElementById("vin").value = "";
+      const result = LotLinkerFill.fillPack(pack);
+      const fields = snapshot();
+      const extrasEmpty = !fields.price && !fields.vin;
+      const ok = result.filled.includes("title") && result.filled.includes("description") && extrasEmpty && fields.description.includes("\n\n");
+      document.getElementById("status").textContent =
+        `${label}: filled ${result.filled.join(", ") || "none"} · extras empty: ${extrasEmpty} · ${ok ? "PASS" : "FAIL"}`;
+      return { label, ok, result, fields };
+    }
+
+    const nissan = {"stock":"26NU0143","year":"2026","make":"Nissan","model":"Altima","trim":"2.5 SR","bodyStyle":"Sedan 4D","mileage":"0","condition":"NEW","drivetrain":"AWD","price":"30470","rooftop":"Lake Country Nissan","body":"NEW 2026 Nissan Altima 2.5 SR · AWD. Located at Lake Country Nissan, N48W36216 E Wisconsin Ave, Oconomowoc. Stock 26NU0143. Standouts: Blind Spot Monitor · Lane Departure Warning · Parking Sensors / Assist · Forward Collision Warning · Bluetooth · Power Seats. Also: Android Auto, Apple CarPlay, leatherette seats, Satellite Radio Ready. Price does not include tax, title, registration, and service fees. Call (262) 522-7200 and ask for Jed."};
+    const hyundai = {"stock":"25HY024","year":"2025","make":"Hyundai","model":"Elantra Hybrid","trim":"Limited","bodyStyle":"Sedan 4D","mileage":"12","condition":"NEW","drivetrain":"FWD","price":"29695","rooftop":"Lake Country Hyundai","body":"NEW 2025 Hyundai Elantra Hybrid Limited · FWD. Located at Lake Country Hyundai, N48W36242 E Wisconsin Ave, Oconomowoc. Stock 25HY024, 12 miles. Standouts: Blind Spot Monitor · Lane Departure Warning · Forward Collision Warning · Apple CarPlay · Android Auto · Bluetooth. Also: Power Seats, Navigation, Heated Front Seats, Moonroof / Panoramic Roof. Price does not include tax, title, registration, and service fees. Call (262) 500-4937 and ask for Jed."};
+    document.getElementById("fillNissan").onclick = () => runFill(nissan, "Nissan");
+    document.getElementById("fillHyundai").onclick = () => runFill(hyundai, "Hyundai");
+    const want = new URLSearchParams(location.search).get("pack");
+    const report = want === "nissan"
+      ? [runFill(nissan, "Nissan")]
+      : want === "hyundai"
+        ? [runFill(hyundai, "Hyundai")]
+        : [runFill(nissan, "Nissan"), runFill(hyundai, "Hyundai")];
+    window.__lotLinkerReport = report;
+    document.body.dataset.report = JSON.stringify(report.map((r) => ({ label: r.label, ok: r.ok, filled: r.result.filled, missed: r.result.missed, extrasEmpty: !r.fields.price && !r.fields.vin, title: r.fields.title })));
+  </script>
+</body>
+</html>

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Lot Linker Fill",
-  "version": "1.6.2",
-  "description": "Fill Marketplace + filters + Refresh. Nissan + Hyundai new/used. Boucher-safe. You hit Post.",
+  "version": "2.0.0",
+  "description": "Fill Marketplace title + description from stock. Boucher Lake Country. You hit Post.",
   "action": {
     "default_popup": "popup.html",
     "default_title": "Lot Linker Fill",
@@ -19,22 +19,12 @@
   },
   "permissions": [
     "activeTab",
-    "scripting",
-    "storage",
-    "clipboardWrite",
-    "downloads"
+    "storage"
   ],
   "host_permissions": [
-    "https://*.boucher.com/*",
-    "https://*.carscommerce.inc/*",
-    "https://*.cloudfront.net/*",
     "https://facebook.com/*",
-    "https://vehicle-images.carscommerce.inc/*",
     "https://www.facebook.com/*",
-    "https://www.hyundailakecountry.com/*",
-    "https://www.nissanlakecountry.com/*",
-    "https://raw.githubusercontent.com/*",
-    "https://github.com/*"
+    "https://raw.githubusercontent.com/*"
   ],
   "content_scripts": [
     {
@@ -43,6 +33,7 @@
         "https://facebook.com/*"
       ],
       "js": [
+        "listing-copy.js",
         "content-fb.js"
       ],
       "run_at": "document_idle"
@@ -57,8 +48,5 @@
         "<all_urls>"
       ]
     }
-  ],
-  "background": {
-    "service_worker": "background.js"
-  }
+  ]
 }
