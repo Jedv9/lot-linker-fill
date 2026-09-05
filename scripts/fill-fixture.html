@@ -12,62 +12,108 @@
     button { padding: 8px 12px; font-weight: 600; }
     #status { color: #0369a1; min-height: 1.2em; }
     .warn { color: #b45309; }
+    .fb-field { margin: 12px 0; }
+    .fb-field > span { display: block; font-weight: 600; margin-bottom: 4px; }
   </style>
 </head>
 <body>
-  <h1>Marketplace create listing (fixture)</h1>
-  <p class="warn">Uses the real content-script fill. Only Title and Description should change. Price and VIN must stay empty.</p>
+  <h1>Marketplace vehicle create listing (fixture)</h1>
+  <p class="warn">Uses the real content-script fill. Only Model and Description should change. Year, Make, and Mileage must stay put.</p>
   <div class="row">
+    <button id="fillRaptor" type="button">Fill Ford PU1392</button>
     <button id="fillNissan" type="button">Fill Nissan 26NU0143</button>
-    <button id="fillHyundai" type="button">Fill Hyundai 25HY024</button>
   </div>
   <div id="status"></div>
-  <label for="title">Title</label>
-  <input id="title" aria-label="Title" />
-  <label for="price">Price</label>
-  <input id="price" aria-label="Price" />
-  <label for="vin">VIN</label>
-  <input id="vin" aria-label="Vehicle identification VIN" />
-  <label for="description">Description</label>
-  <textarea id="description" aria-label="Description" rows="16"></textarea>
-  <script src="../listing-copy.js?v=buyer-features"></script>
+
+  <div class="fb-field">
+    <span>Year</span>
+    <input id="year" aria-label="Year" value="2012" />
+  </div>
+  <div class="fb-field">
+    <span>Make</span>
+    <input id="make" aria-label="Make" value="Ford" />
+  </div>
+  <div class="fb-field">
+    <label>
+      <span>Model</span>
+      <input id="model" />
+    </label>
+  </div>
+  <div class="fb-field">
+    <span>Mileage</span>
+    <input id="mileage" aria-label="Mileage" value="87000" />
+  </div>
+  <div class="fb-field">
+    <span id="desc-lab">Description</span>
+    <div id="description" role="textbox" aria-labelledby="desc-lab" aria-label="Description" contenteditable="true" aria-multiline="true"></div>
+  </div>
+
+  <script src="../listing-copy.js?v=model-line"></script>
   <script src="../content-fb.js"></script>
   <script>
     function snapshot() {
       return {
-        title: document.getElementById("title").value,
-        description: document.getElementById("description").value,
-        price: document.getElementById("price").value,
-        vin: document.getElementById("vin").value,
+        year: document.getElementById("year").value,
+        make: document.getElementById("make").value,
+        model: document.getElementById("model").value,
+        mileage: document.getElementById("mileage").value,
+        description: document.getElementById("description").innerText || document.getElementById("description").textContent,
       };
     }
 
-    function runFill(pack, label) {
-      document.getElementById("title").value = "";
-      document.getElementById("description").value = "";
-      document.getElementById("price").value = "";
-      document.getElementById("vin").value = "";
-      const result = LotLinkerFill.fillPack(pack);
-      const fields = snapshot();
-      const extrasEmpty = !fields.price && !fields.vin;
-      const ok = result.filled.includes("title") && result.filled.includes("description") && extrasEmpty && fields.description.includes("\n\n");
-      document.getElementById("status").textContent =
-        `${label}: filled ${result.filled.join(", ") || "none"} · extras empty: ${extrasEmpty} · ${ok ? "PASS" : "FAIL"}`;
-      return { label, ok, result, fields };
+    function resetForm(year, make, mileage) {
+      document.getElementById("year").value = year;
+      document.getElementById("make").value = make;
+      document.getElementById("model").value = "";
+      document.getElementById("mileage").value = mileage;
+      document.getElementById("description").innerHTML = "";
+      document.getElementById("description").textContent = "";
     }
 
-    const nissan = {"stock":"26NU0143","year":"2026","make":"Nissan","model":"Altima","trim":"2.5 SR","bodyStyle":"Sedan 4D","mileage":"0","condition":"NEW","drivetrain":"AWD","price":"30470","rooftop":"Lake Country Nissan","body":"NEW 2026 Nissan Altima 2.5 SR · AWD. Located at Lake Country Nissan, N48W36216 E Wisconsin Ave, Oconomowoc. Stock 26NU0143. Standouts: Blind Spot Monitor · Lane Departure Warning · Parking Sensors / Assist · Forward Collision Warning · Bluetooth · Power Seats. Also: Android Auto, Apple CarPlay, leatherette seats, Satellite Radio Ready. Price does not include tax, title, registration, and service fees. Call (262) 522-7200 and ask for Jed."};
-    const hyundai = {"stock":"25HY024","year":"2025","make":"Hyundai","model":"Elantra Hybrid","trim":"Limited","bodyStyle":"Sedan 4D","mileage":"12","condition":"NEW","drivetrain":"FWD","price":"29695","rooftop":"Lake Country Hyundai","body":"NEW 2025 Hyundai Elantra Hybrid Limited · FWD. Located at Lake Country Hyundai, N48W36242 E Wisconsin Ave, Oconomowoc. Stock 25HY024, 12 miles. Standouts: Blind Spot Monitor · Lane Departure Warning · Forward Collision Warning · Apple CarPlay · Android Auto · Bluetooth. Also: Power Seats, Navigation, Heated Front Seats, Moonroof / Panoramic Roof. Price does not include tax, title, registration, and service fees. Call (262) 500-4937 and ask for Jed."};
-    document.getElementById("fillNissan").onclick = () => runFill(nissan, "Nissan");
-    document.getElementById("fillHyundai").onclick = () => runFill(hyundai, "Hyundai");
+    function runFill(pack, label, preset) {
+      resetForm(preset.year, preset.make, preset.mileage);
+      const result = LotLinkerFill.fillPack(pack);
+      const fields = snapshot();
+      const listing = LotLinkerListing.packToListing(pack);
+      const protectedOk =
+        fields.year === preset.year &&
+        fields.make === preset.make &&
+        fields.mileage === preset.mileage;
+      const modelOk = fields.model === listing.modelLine && !/^20\d{2}\b/.test(fields.model) && !/Ford|Nissan|Hyundai/i.test(fields.model.split(" | ")[0] || "");
+      const descOk = fields.description.includes("Wisconsin shoppers") && /\n/.test(fields.description);
+      const keysOk = result.filled.includes("model") && result.filled.includes("description") && !result.missed.length;
+      const ok = protectedOk && modelOk && descOk && keysOk;
+      document.getElementById("status").textContent =
+        `${label}: filled ${result.filled.join(", ") || "none"} · missed ${result.missed.join(", ") || "none"} · ${ok ? "PASS" : "FAIL"}`;
+      return { label, ok, result, fields, listing };
+    }
+
+    const raptor = {"stock":"PU1392","year":"2012","make":"Ford","model":"F-150","trim":"SVT Raptor","bodyStyle":"Crew Cab 4D","mileage":"87000","condition":"USED","drivetrain":"4WD","price":"26900","rooftop":"Lake Country Nissan","body":"USED 2012 Ford F-150 SVT Raptor · 4WD. Located at Lake Country Nissan. Stock PU1392, 87,000 miles. Standouts: Heated Seats · Backup Camera · 4WD."};
+    const nissan = {"stock":"26NU0143","year":"2026","make":"Nissan","model":"Altima","trim":"2.5 SR","bodyStyle":"Sedan 4D","mileage":"0","condition":"NEW","drivetrain":"AWD","price":"30470","rooftop":"Lake Country Nissan","body":"NEW 2026 Nissan Altima 2.5 SR · AWD. Located at Lake Country Nissan, N48W36216 E Wisconsin Ave, Oconomowoc. Stock 26NU0143. Standouts: Blind Spot Monitor · Lane Departure Warning · Parking Sensors / Assist · Forward Collision Warning · Bluetooth · Power Blue Seats. Also: Android Auto, Apple CarPlay, leatherette seats, Satellite Radio Ready. Price does not include tax, title, registration, and service fees. Call (262) 522-7200 and ask for Jed."};
+    document.getElementById("fillRaptor").onclick = () => runFill(raptor, "Raptor", { year: "2012", make: "Ford", mileage: "87000" });
+    document.getElementById("fillNissan").onclick = () => runFill(nissan, "Nissan", { year: "2026", make: "Nissan", mileage: "0" });
     const want = new URLSearchParams(location.search).get("pack");
     const report = want === "nissan"
-      ? [runFill(nissan, "Nissan")]
-      : want === "hyundai"
-        ? [runFill(hyundai, "Hyundai")]
-        : [runFill(nissan, "Nissan"), runFill(hyundai, "Hyundai")];
+      ? [runFill(nissan, "Nissan", { year: "2026", make: "Nissan", mileage: "0" })]
+      : want === "raptor"
+        ? [runFill(raptor, "Raptor", { year: "2012", make: "Ford", mileage: "87000" })]
+        : [
+            runFill(raptor, "Raptor", { year: "2012", make: "Ford", mileage: "87000" }),
+            runFill(nissan, "Nissan", { year: "2026", make: "Nissan", mileage: "0" }),
+          ];
     window.__lotLinkerReport = report;
-    document.body.dataset.report = JSON.stringify(report.map((r) => ({ label: r.label, ok: r.ok, filled: r.result.filled, missed: r.result.missed, extrasEmpty: !r.fields.price && !r.fields.vin, title: r.fields.title })));
+    document.body.dataset.report = JSON.stringify(report.map((r) => ({
+      label: r.label,
+      ok: r.ok,
+      filled: r.result.filled,
+      missed: r.result.missed,
+      model: r.fields.model,
+      modelLine: r.listing.modelLine,
+      year: r.fields.year,
+      make: r.fields.make,
+      mileage: r.fields.mileage,
+      descriptionHasNewlines: /\n/.test(r.fields.description),
+    })));
   </script>
 </body>
 </html>

@@ -1,19 +1,30 @@
-// Lot Linker Fill — title + description only. Never Post.
+// Lot Linker Fill — Model + description only. Never Post. Never Year/Make/Mileage.
 function isMarketplacePath() {
   return /marketplace/i.test(location.pathname + location.href);
 }
 
 function setNativeValue(el, value) {
   if (!el || value == null) return false;
+  const next = String(value);
   const proto =
     el instanceof HTMLTextAreaElement
       ? HTMLTextAreaElement.prototype
       : HTMLInputElement.prototype;
-  const desc = Object.getOwnPropertyDescriptor(proto, "value");
-  desc?.set?.call(el, String(value));
-  el.dispatchEvent(new Event("input", { bubbles: true }));
+  const desc =
+    Object.getOwnPropertyDescriptor(proto, "value") ||
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+  const last = el.value;
+  try {
+    el._valueTracker?.setValue(last);
+  } catch {
+    /* ignore */
+  }
+  desc?.set?.call(el, next);
+  el.dispatchEvent(
+    new InputEvent("input", { bubbles: true, composed: true, data: next, inputType: "insertFromPaste" })
+  );
   el.dispatchEvent(new Event("change", { bubbles: true }));
-  return true;
+  return String(el.value ?? "").replace(/\r\n/g, "\n") === next.replace(/\r\n/g, "\n");
 }
 
 function escapeHtml(s) {
@@ -26,7 +37,7 @@ function escapeHtml(s) {
 function fillMultiline(el, value) {
   const text = String(value);
   if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) {
-    return setNativeValue(el, text);
+    if (setNativeValue(el, text)) return true;
   }
   el.focus();
   try {
@@ -36,15 +47,27 @@ function fillMultiline(el, value) {
     sel.removeAllRanges();
     sel.addRange(range);
     if (document.execCommand("insertText", false, text)) {
-      el.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
+      el.dispatchEvent(
+        new InputEvent("input", { bubbles: true, inputType: "insertFromPaste", data: text })
+      );
       return true;
     }
   } catch {
     /* fall through */
   }
-  el.innerHTML = text.split("\n").map((line) => escapeHtml(line)).join("<br>");
+  el.innerHTML = text.split("\n").map((line) => (line ? escapeHtml(line) : "")).join("<br>");
   el.dispatchEvent(new InputEvent("input", { bubbles: true }));
   return true;
+}
+
+function shortText(s) {
+  return String(s || "").replace(/\s+/g, " ").trim();
+}
+
+function isControl(node) {
+  return node?.matches?.(
+    "input, textarea, select, [contenteditable], [role=textbox], [role=combobox]"
+  );
 }
 
 function labelText(el) {
@@ -53,48 +76,117 @@ function labelText(el) {
     el.placeholder,
     el.name,
     el.id,
-    el.getAttribute("aria-labelledby") &&
-      document.getElementById(el.getAttribute("aria-labelledby"))?.textContent,
   ];
-  const label = el.closest("label");
-  if (label) bits.push(label.textContent);
-  const wrap = el.closest("div");
-  if (wrap) {
-    const lab = wrap.querySelector("label, span, div");
-    if (lab && lab !== el) bits.push(lab.textContent);
+  const labelledBy = el.getAttribute("aria-labelledby");
+  if (labelledBy) {
+    for (const id of labelledBy.split(/\s+/)) {
+      const n = document.getElementById(id);
+      if (n) bits.push(n.textContent);
+    }
   }
-  return (bits.filter(Boolean).join(" ") || "").toLowerCase().replace(/\s+/g, " ");
+  if (el.id) {
+    try {
+      const forLab = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+      if (forLab) bits.push(forLab.textContent);
+    } catch {
+      /* ignore */
+    }
+  }
+  const closestLabel = el.closest("label");
+  if (closestLabel) bits.push(closestLabel.textContent);
+
+  const sib = el.previousElementSibling;
+  if (sib && sib.matches("label, span, div, p, legend") && !isControl(sib) && !sib.querySelector("input, textarea, [contenteditable], [role=textbox]")) {
+    const t = shortText(sib.textContent);
+    if (t && t.length < 40) bits.push(t);
+  }
+
+  const parent = el.parentElement;
+  if (parent) {
+    const lab = parent.querySelector(":scope > label, :scope > span, :scope > [role=label]");
+    if (lab && !lab.contains(el) && !lab.querySelector("input, textarea, [role=textbox]")) {
+      const t = shortText(lab.textContent);
+      if (t && t.length < 40) bits.push(t);
+    }
+    const gp = parent.parentElement;
+    if (gp && gp.querySelectorAll("input, textarea, [contenteditable], [role=textbox]").length <= 1) {
+      const glab = gp.querySelector(":scope > label, :scope > span, :scope > [role=label]");
+      if (glab && !glab.contains(el)) {
+        const t = shortText(glab.textContent);
+        if (t && t.length < 40) bits.push(t);
+      }
+    }
+  }
+  return bits.filter(Boolean).map(shortText).filter(Boolean).join(" ").toLowerCase();
+}
+
+function isProtectedLabel(lab) {
+  return (
+    /\byear\b/.test(lab) ||
+    /\bmake\b/.test(lab) ||
+    /\bmileage\b/.test(lab) ||
+    /\bodometer\b/.test(lab)
+  );
 }
 
 function allInputs() {
   return [
     ...document.querySelectorAll(
-      "input:not([type=hidden]):not([type=checkbox]):not([type=radio]), textarea, [contenteditable=true], [role=textbox]"
+      "input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=file]):not([type=submit]):not([type=button]), textarea, [contenteditable]:not([contenteditable=false]), [role=textbox]"
     ),
   ];
 }
 
-function findField(matchers, { exclude = [] } = {}) {
-  for (const el of allInputs()) {
-    const lab = labelText(el);
-    if (exclude.some((x) => x.test(lab))) continue;
-    if (matchers.some((m) => m.test(lab))) return el;
-  }
-  return null;
+function isMultilineEl(el) {
+  return (
+    el instanceof HTMLTextAreaElement ||
+    el.isContentEditable ||
+    el.getAttribute("aria-multiline") === "true" ||
+    (el.getAttribute("role") === "textbox" && !(el instanceof HTMLInputElement))
+  );
 }
 
-function fillText(matchers, value, exclude) {
+function findField(matchers, { exclude = [], prefer } = {}) {
+  const hits = [];
+  for (const el of allInputs()) {
+    const lab = labelText(el);
+    if (!lab) continue;
+    if (isProtectedLabel(lab)) continue;
+    if (exclude.some((x) => x.test(lab))) continue;
+    if (!matchers.some((m) => m.test(lab))) continue;
+    hits.push({ el, lab });
+  }
+  if (!hits.length) return null;
+  if (prefer === "multiline") {
+    const multi = hits.find((h) => isMultilineEl(h.el));
+    if (multi) return multi.el;
+  }
+  if (prefer === "single") {
+    const single = hits.find((h) => h.el instanceof HTMLInputElement && !h.el.isContentEditable);
+    if (single) return single.el;
+  }
+  hits.sort((a, b) => a.lab.length - b.lab.length);
+  return hits[0].el;
+}
+
+function fillText(matchers, value, exclude, prefer) {
   if (value == null || value === "") return false;
-  const el = findField(matchers, { exclude });
+  const el = findField(matchers, { exclude, prefer });
   if (!el) return false;
+  if (isProtectedLabel(labelText(el))) return false;
   return fillMultiline(el, value);
 }
 
 function listingFromPack(pack) {
-  if (typeof LotLinkerListing !== "undefined" && LotLinkerListing.fromPack) {
-    return LotLinkerListing.fromPack(pack);
+  if (typeof LotLinkerListing !== "undefined") {
+    if (LotLinkerListing.packToListing) return LotLinkerListing.packToListing(pack);
+    if (LotLinkerListing.fromPack) return LotLinkerListing.fromPack(pack);
   }
-  return { title: pack.title || "", body: pack.body || "" };
+  return {
+    title: pack.title || "",
+    modelLine: pack.modelLine || "",
+    body: pack.body || "",
+  };
 }
 
 function fillPack(pack) {
@@ -102,13 +194,28 @@ function fillPack(pack) {
   const filled = [];
   const missed = [];
   const mark = (key, ok) => (ok ? filled : missed).push(key);
+  const modelLine = listing.modelLine || "";
 
   mark(
-    "title",
+    "model",
     fillText(
-      [/\blisting title\b/, /\bitem title\b/, /^title$/, /\btitle\b/, /\bheadline\b/],
-      listing.title,
-      [/description/, /clean title/, /title status/, /vehicle identification/, /\bvin\b/, /more details/]
+      [/^model$/, /\bvehicle model\b/, /\bmodel\b/],
+      modelLine,
+      [
+        /description/,
+        /\byear\b/,
+        /\bmake\b/,
+        /\bmileage\b/,
+        /\bodometer\b/,
+        /\bvin\b/,
+        /vehicle identification/,
+        /more details/,
+        /clean title/,
+        /title status/,
+        /listing title/,
+        /item title/,
+      ],
+      "single"
     )
   );
 
@@ -117,20 +224,34 @@ function fillPack(pack) {
     fillText(
       [/^description$/, /\bdescription\b/, /more details/, /about this vehicle/, /tell buyers/],
       listing.body,
-      [/\btitle\b/, /\bvin\b/]
+      [
+        /^model$/,
+        /\bvehicle model\b/,
+        /\byear\b/,
+        /\bmake\b/,
+        /\bmileage\b/,
+        /\bodometer\b/,
+        /\bvin\b/,
+        /clean title/,
+        /title status/,
+        /listing title/,
+        /item title/,
+      ],
+      "multiline"
     )
   );
 
   return {
     filled: [...new Set(filled)],
     missed: [...new Set(missed)],
+    modelLine,
     title: listing.title,
-    notes: "Title + description only. You hit Post.",
+    notes: "Model + description only. You hit Post.",
   };
 }
 
 if (typeof globalThis !== "undefined") {
-  globalThis.LotLinkerFill = { fillPack, isMarketplacePath };
+  globalThis.LotLinkerFill = { fillPack, isMarketplacePath, findField, labelText };
 }
 
 if (typeof chrome !== "undefined" && chrome.runtime?.onMessage) {

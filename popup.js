@@ -9,7 +9,7 @@ const status = (t) => { $("status").textContent = t || ""; };
 function listingFor(pack) {
   return (typeof LotLinkerListing !== "undefined" && LotLinkerListing.fromPack)
     ? LotLinkerListing.fromPack(pack)
-    : { title: pack?.title || "", body: pack?.body || "" };
+    : { title: pack?.title || "", modelLine: pack?.modelLine || "", body: pack?.body || "" };
 }
 
 function showRefreshMeta(iso) {
@@ -91,7 +91,7 @@ function renderList() {
 
 function renderListing(pack) {
   const listing = listingFor(pack);
-  $("mTitle").textContent = listing.title;
+  $("mTitle").textContent = listing.modelLine || listing.title;
   $("mBody").textContent = listing.body;
 }
 
