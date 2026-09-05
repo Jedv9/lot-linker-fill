@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Lot Linker Fill",
-  "version": "1.6.0",
-  "description": "Fill Marketplace + filters (make/model/store/stock) + Refresh from GitHub. Boucher-safe. You hit Post.",
+  "version": "1.6.1",
+  "description": "Fill Marketplace + filters + Refresh. Nissan + Hyundai new/used. Boucher-safe. You hit Post.",
   "action": {
     "default_popup": "popup.html",
     "default_title": "Lot Linker Fill",
