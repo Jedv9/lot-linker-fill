@@ -129,19 +129,22 @@ function fillPack(pack) {
   };
 }
 
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (msg?.type !== "LOT_LINKER_FILL") return;
-  if (!isMarketplacePath()) {
-    sendResponse({ ok: false, error: "Open a Facebook Marketplace listing tab first" });
-    return true;
-  }
-  (async () => {
+if (typeof globalThis !== "undefined") {
+  globalThis.LotLinkerFill = { fillPack, isMarketplacePath };
+}
+
+if (typeof chrome !== "undefined" && chrome.runtime?.onMessage) {
+  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    if (msg?.type !== "LOT_LINKER_FILL") return;
+    if (!isMarketplacePath()) {
+      sendResponse({ ok: false, error: "Open a Facebook Marketplace listing tab first" });
+      return true;
+    }
     try {
-      const result = fillPack(msg.pack || {});
-      sendResponse({ ok: true, ...result });
+      sendResponse({ ok: true, ...fillPack(msg.pack || {}) });
     } catch (e) {
       sendResponse({ ok: false, error: String(e) });
     }
-  })();
-  return true;
-});
+    return true;
+  });
+}

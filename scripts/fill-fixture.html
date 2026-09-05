@@ -4,49 +4,66 @@
   <meta charset="utf-8" />
   <title>Lot Linker fill fixture</title>
   <style>
-    body { font: 14px/1.4 system-ui; max-width: 720px; margin: 24px auto; }
+    body { font: 14px/1.4 system-ui, sans-serif; max-width: 760px; margin: 24px auto; color: #0f172a; }
     label { display: block; font-weight: 600; margin: 12px 0 4px; }
-    input, textarea, [contenteditable] { width: 100%; box-sizing: border-box; padding: 8px; }
-    [contenteditable] { min-height: 220px; border: 1px solid #ccc; white-space: pre-wrap; }
-    pre { background: #0f172a; color: #e2e8f0; padding: 12px; white-space: pre-wrap; }
-    .row { display: flex; gap: 8px; margin: 12px 0; }
+    input, textarea, [contenteditable] { width: 100%; box-sizing: border-box; padding: 8px; font: inherit; }
+    [contenteditable] { min-height: 220px; border: 1px solid #94a3b8; white-space: pre-wrap; }
+    .row { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+    button { padding: 8px 12px; font-weight: 600; }
+    #status { color: #0369a1; min-height: 1.2em; }
+    .warn { color: #b45309; }
   </style>
 </head>
 <body>
   <h1>Marketplace create listing (fixture)</h1>
-  <p>Title + description only. Extra fields must stay empty after Fill.</p>
+  <p class="warn">Uses the real content-script fill. Only Title and Description should change. Price and VIN must stay empty.</p>
   <div class="row">
-    <button id="fillNissan">Fill Nissan 26NU0143</button>
-    <button id="fillHyundai">Fill Hyundai 25HY024</button>
+    <button id="fillNissan" type="button">Fill Nissan 26NU0143</button>
+    <button id="fillHyundai" type="button">Fill Hyundai 25HY024</button>
   </div>
+  <div id="status"></div>
   <label for="title">Title</label>
   <input id="title" aria-label="Title" />
   <label for="price">Price</label>
   <input id="price" aria-label="Price" />
   <label for="vin">VIN</label>
-  <input id="vin" aria-label="VIN" />
+  <input id="vin" aria-label="Vehicle identification VIN" />
   <label for="description">Description</label>
   <textarea id="description" aria-label="Description" rows="16"></textarea>
-  <label>More details (contenteditable description twin)</label>
-  <div id="more" role="textbox" contenteditable="true" aria-label="More details"></div>
-  <h2>Generated preview</h2>
-  <pre id="preview"></pre>
   <script src="../listing-copy.js"></script>
+  <script src="../content-fb.js"></script>
   <script>
     const nissan = { stock: "26NU0143", year: "2026", make: "Nissan", model: "Altima", trim: "2.5 SR", bodyStyle: "Sedan 4D", mileage: "0", condition: "NEW", drivetrain: "AWD", price: "30470", rooftop: "Lake Country Nissan", body: "Standouts: Blind Spot Monitor · Lane Departure Warning · Parking Sensors / Assist · Forward Collision Warning · Bluetooth · Power Seats. Also: Android Auto." };
     const hyundai = { stock: "25HY024", year: "2025", make: "Hyundai", model: "Elantra Hybrid", trim: "Limited", bodyStyle: "Sedan 4D", mileage: "12", condition: "NEW", drivetrain: "FWD", price: "29695", rooftop: "Lake Country Hyundai", body: "Standouts: Blind Spot Monitor · Lane Departure Warning · Forward Collision Warning · Apple CarPlay · Android Auto · Bluetooth. Also: Power Seats." };
 
-    function fill(pack) {
-      const listing = LotLinkerListing.fromPack(pack);
-      document.getElementById("title").value = listing.title;
-      document.getElementById("description").value = listing.body;
-      document.getElementById("more").innerText = listing.body;
-      document.getElementById("preview").textContent = listing.title + "\n\n" + listing.body;
+    function snapshot() {
+      return {
+        title: document.getElementById("title").value,
+        description: document.getElementById("description").value,
+        price: document.getElementById("price").value,
+        vin: document.getElementById("vin").value,
+      };
     }
 
-    document.getElementById("fillNissan").onclick = () => fill(nissan);
-    document.getElementById("fillHyundai").onclick = () => fill(hyundai);
-    fill(nissan);
+    function runFill(pack, label) {
+      document.getElementById("title").value = "";
+      document.getElementById("description").value = "";
+      document.getElementById("price").value = "";
+      document.getElementById("vin").value = "";
+      const result = LotLinkerFill.fillPack(pack);
+      const fields = snapshot();
+      const extrasEmpty = !fields.price && !fields.vin;
+      const ok = result.filled.includes("title") && result.filled.includes("description") && extrasEmpty && fields.description.includes("\n\n");
+      document.getElementById("status").textContent =
+        `${label}: filled ${result.filled.join(", ") || "none"} · extras empty: ${extrasEmpty} · ${ok ? "PASS" : "FAIL"}`;
+      return { label, ok, result, fields };
+    }
+
+    document.getElementById("fillNissan").onclick = () => runFill(nissan, "Nissan");
+    document.getElementById("fillHyundai").onclick = () => runFill(hyundai, "Hyundai");
+    const report = [runFill(nissan, "Nissan"), runFill(hyundai, "Hyundai")];
+    window.__lotLinkerReport = report;
+    document.body.dataset.report = JSON.stringify(report.map((r) => ({ label: r.label, ok: r.ok, filled: r.result.filled, missed: r.result.missed, extrasEmpty: !r.fields.price && !r.fields.vin, title: r.fields.title })));
   </script>
 </body>
 </html>
