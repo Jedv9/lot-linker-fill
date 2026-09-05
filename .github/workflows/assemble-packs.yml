@@ -1,0 +1,41 @@
+name: Assemble packs.json
+on:
+  push:
+    paths:
+      - "packs-part*.json"
+      - ".github/workflows/assemble-packs.yml"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Merge parts into packs.json
+        run: |
+          python3 << 'PY'
+          import json
+          from pathlib import Path
+          packs = []
+          for i in range(1, 5):
+              p = Path(f"packs-part{i}.json")
+              if not p.exists():
+                  raise SystemExit(f"missing {p}")
+              d = json.loads(p.read_text())
+              packs.extend(d.get("packs") or [])
+          out = {"generated": "2026-09-04", "count": len(packs), "packs": packs}
+          Path("packs.json").write_text(json.dumps(out, separators=(",", ":")))
+          print("wrote packs.json count=", len(packs))
+          PY
+      - name: Commit packs.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packs.json
+          if git diff --staged --quiet; then
+            echo "no change"
+          else
+            git commit -m "Assemble packs.json (208 packs) from part files"
+            git push
+          fi
