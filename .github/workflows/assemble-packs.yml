@@ -18,7 +18,7 @@ jobs:
           import json
           from pathlib import Path
           packs = []
-          for i in range(1, 5):
+          for i in range(1, 21):
               p = Path(f"packs-part{i}.json")
               if not p.exists():
                   raise SystemExit(f"missing {p}")
