@@ -1,5 +1,7 @@
 let packs = [];
 let selected = null;
+let researchPromise = null;
+let researchStock = null;
 
 const $ = (id) => document.getElementById(id);
 const status = (t) => { $("status").textContent = t || ""; };
@@ -87,14 +89,48 @@ function renderList() {
   if (selected && !filtered.some((p) => p.stock === selected.stock)) showPack(null);
 }
 
+function renderListing(pack) {
+  const listing = listingFor(pack);
+  $("mTitle").textContent = listing.title;
+  $("mBody").textContent = listing.body;
+}
+
+async function ensureResearched(pack) {
+  if (!pack) return pack;
+  if (typeof LotLinkerListing === "undefined") return pack;
+  if (!LotLinkerListing.needsResearch?.(pack)) return pack;
+  if (pack._researched) return pack;
+  if (researchStock === pack.stock && researchPromise) return researchPromise;
+  researchStock = pack.stock;
+  researchPromise = LotLinkerListing.researchPack(pack, { timeoutMs: 10000 })
+    .then((enriched) => {
+      enriched._researched = true;
+      return enriched;
+    })
+    .catch(() => pack);
+  return researchPromise;
+}
+
 function showPack(p) {
   selected = p;
+  researchPromise = null;
+  researchStock = null;
   $("card").hidden = !p;
   $("fill").disabled = !p;
   if (!p) return;
-  const listing = listingFor(p);
-  $("mTitle").textContent = listing.title;
-  $("mBody").textContent = listing.body;
+  renderListing(p);
+  if (typeof LotLinkerListing !== "undefined" && LotLinkerListing.needsResearch?.(p)) {
+    status("Researching features from VDP…");
+    ensureResearched(p).then((enriched) => {
+      if (!selected || selected.stock !== p.stock) return;
+      const before = LotLinkerListing.keyEquipment(p);
+      const after = LotLinkerListing.keyEquipment(enriched);
+      selected = enriched;
+      renderListing(enriched);
+      const added = after.filter((f) => !before.includes(f));
+      status(added.length ? `Researched +${added.length}: ${added.join(", ")}` : `${after.length} verified features`);
+    });
+  }
 }
 
 $("q").addEventListener("input", () => renderList());
@@ -112,7 +148,10 @@ $("fill").onclick = async () => {
     return status("Open a facebook.com Marketplace create tab first");
   }
   try {
-    const res = await chrome.tabs.sendMessage(tab.id, { type: "LOT_LINKER_FILL", pack: selected });
+    const pack = await ensureResearched(selected);
+    selected = pack;
+    renderListing(pack);
+    const res = await chrome.tabs.sendMessage(tab.id, { type: "LOT_LINKER_FILL", pack });
     if (res?.ok) {
       const bits = [`Filled: ${res.filled?.join(", ") || "ok"}`];
       if (res.missed?.length) bits.push(`missed: ${res.missed.join(", ")}`);

@@ -10,7 +10,7 @@ const popup = readFileSync(new URL("../popup.js", import.meta.url), "utf8");
 const popupHtml = readFileSync(new URL("../popup.html", import.meta.url), "utf8");
 const manifest = JSON.parse(readFileSync(new URL("../manifest.json", import.meta.url), "utf8"));
 
-assert.equal(manifest.version, "2.0.0");
+assert.equal(manifest.version, "2.1.0");
 assert.deepEqual(manifest.content_scripts[0].js, ["listing-copy.js", "content-fb.js"]);
 assert.ok(!manifest.background, "service worker / photo download must be gone");
 assert.ok(!manifest.permissions.includes("downloads"));
