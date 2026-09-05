@@ -247,7 +247,21 @@ $("refreshInventory").onclick = async () => {
       status("Refresh failed: invalid JSON");
       return;
     }
-    const remote = Array.isArray(data) ? data : (data.packs || []);
+    let remote = Array.isArray(data) ? data : (data.packs || []);
+    if ((!remote.length) && data && data.error === "use parts" && Array.isArray(data.parts) && data.parts.length) {
+      const base = url.replace(/packs\.json(?:\?.*)?$/i, "");
+      remote = [];
+      for (const part of data.parts) {
+        const pr = await fetch(base + part + "?t=" + Date.now());
+        if (!pr.ok) {
+          status(`Refresh failed: part ${part} HTTP ${pr.status}`);
+          return;
+        }
+        const pdata = await pr.json();
+        const chunk = Array.isArray(pdata) ? pdata : (pdata.packs || []);
+        remote = remote.concat(chunk);
+      }
+    }
     if (!remote.length) {
       status("Refresh failed: no packs in remote JSON");
       return;
