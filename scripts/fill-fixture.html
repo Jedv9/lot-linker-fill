@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Lot Linker fill fixture</title>
+  <style>
+    body { font: 14px/1.4 system-ui; max-width: 720px; margin: 24px auto; }
+    label { display: block; font-weight: 600; margin: 12px 0 4px; }
+    input, textarea, [contenteditable] { width: 100%; box-sizing: border-box; padding: 8px; }
+    [contenteditable] { min-height: 220px; border: 1px solid #ccc; white-space: pre-wrap; }
+    pre { background: #0f172a; color: #e2e8f0; padding: 12px; white-space: pre-wrap; }
+    .row { display: flex; gap: 8px; margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <h1>Marketplace create listing (fixture)</h1>
+  <p>Title + description only. Extra fields must stay empty after Fill.</p>
+  <div class="row">
+    <button id="fillNissan">Fill Nissan 26NU0143</button>
+    <button id="fillHyundai">Fill Hyundai 25HY024</button>
+  </div>
+  <label for="title">Title</label>
+  <input id="title" aria-label="Title" />
+  <label for="price">Price</label>
+  <input id="price" aria-label="Price" />
+  <label for="vin">VIN</label>
+  <input id="vin" aria-label="VIN" />
+  <label for="description">Description</label>
+  <textarea id="description" aria-label="Description" rows="16"></textarea>
+  <label>More details (contenteditable description twin)</label>
+  <div id="more" role="textbox" contenteditable="true" aria-label="More details"></div>
+  <h2>Generated preview</h2>
+  <pre id="preview"></pre>
+  <script src="../listing-copy.js"></script>
+  <script>
+    const nissan = { stock: "26NU0143", year: "2026", make: "Nissan", model: "Altima", trim: "2.5 SR", bodyStyle: "Sedan 4D", mileage: "0", condition: "NEW", drivetrain: "AWD", price: "30470", rooftop: "Lake Country Nissan", body: "Standouts: Blind Spot Monitor · Lane Departure Warning · Parking Sensors / Assist · Forward Collision Warning · Bluetooth · Power Seats. Also: Android Auto." };
+    const hyundai = { stock: "25HY024", year: "2025", make: "Hyundai", model: "Elantra Hybrid", trim: "Limited", bodyStyle: "Sedan 4D", mileage: "12", condition: "NEW", drivetrain: "FWD", price: "29695", rooftop: "Lake Country Hyundai", body: "Standouts: Blind Spot Monitor · Lane Departure Warning · Forward Collision Warning · Apple CarPlay · Android Auto · Bluetooth. Also: Power Seats." };
+
+    function fill(pack) {
+      const listing = LotLinkerListing.fromPack(pack);
+      document.getElementById("title").value = listing.title;
+      document.getElementById("description").value = listing.body;
+      document.getElementById("more").innerText = listing.body;
+      document.getElementById("preview").textContent = listing.title + "\n\n" + listing.body;
+    }
+
+    document.getElementById("fillNissan").onclick = () => fill(nissan);
+    document.getElementById("fillHyundai").onclick = () => fill(hyundai);
+    fill(nissan);
+  </script>
+</body>
+</html>
