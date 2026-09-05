@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Lot Linker Fill",
-  "version": "2.0.0",
-  "description": "Fill Marketplace title + description from stock. Boucher Lake Country. You hit Post.",
+  "version": "2.1.0",
+  "description": "Fill Marketplace title + description from stock. Researches VDP when equipment is thin. You hit Post.",
   "action": {
     "default_popup": "popup.html",
     "default_title": "Lot Linker Fill",
@@ -24,7 +24,11 @@
   "host_permissions": [
     "https://facebook.com/*",
     "https://www.facebook.com/*",
-    "https://raw.githubusercontent.com/*"
+    "https://raw.githubusercontent.com/*",
+    "https://www.nissanlakecountry.com/*",
+    "https://www.hyundailakecountry.com/*",
+    "https://*.boucher.com/*",
+    "https://vpic.nhtsa.dot.gov/*"
   ],
   "content_scripts": [
     {
