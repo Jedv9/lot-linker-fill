@@ -121,38 +121,113 @@
     return out;
   }
 
-  function verifiedFieldFeatures(pack) {
-    const out = [];
-    if (isReal(pack.drivetrain)) out.push(text(pack.drivetrain));
-    if (isReal(pack.transmission)) out.push(text(pack.transmission));
-    const fuel = text(pack.fuel);
-    if (isReal(fuel) && /hybrid|diesel|electric|plugin|plug-?in/.test(fuel)) out.push(fuel);
-    const body = shortBody(pack.bodyStyle);
-    if (body) out.push(body);
-    return out;
+  const JUNK_RE =
+    /gasoline|gas engine|brake light|headlight|daytime running|\btires?\b|^wheels:|alloy wheels|painted aluminum|seat belt|airbag|am\/?fm|\bradio\b|power windows|power locks|automatic transmission|\bcvt\b|xtronic|dual clutch|\babs\b|antilock|\bfwd\b|\brwd\b|premium paint|paint package|wheellip|gvwr|payload|priced on the money|oil change|technician|meticulous|pride of ownership|vanity mirror|sun visor|kick plate|interior accent|cargo area lighting|tie-down|cargo area protector|cargo liner|floor liner|standard suspension|appearance package|monochromatic|illuminated vanity|premium cloth|embroidered|quick order package|equipment group \d|\blpo\b|\bpio\b|disc\)|while staying|you'?ll find|luxury meets|this ranger|religiously serviced|undercoated|satellite radio|bluetooth/i;
+
+  const BUYER_RULES = [
+    { re: /heated steering/i, score: 100, category: "heated_steer" },
+    { re: /ventilat|cooled seats?/i, score: 100, category: "vent_seats" },
+    { re: /heated (front |rear )?seats?|heated and ventilated/i, score: 100, category: "heated_seats" },
+    { re: /sunroof|moonroof|panoramic/i, score: 95, category: "roof" },
+    { re: /power liftgate|power tailgate|hands-?free liftgate/i, score: 95, category: "liftgate" },
+    { re: /apple carplay|android auto/i, score: 92, category: "phone" },
+    { re: /remote start/i, score: 92, category: "remote_start" },
+    { re: /blind.?spot/i, score: 90, category: "blind_spot" },
+    { re: /backup camera|rear(view)? camera|360|surround view|bird.?eye/i, score: 90, category: "camera" },
+    { re: /leather/i, score: 90, category: "leather" },
+    { re: /adaptive cruise|propilot|pilot assist/i, score: 90, category: "cruise" },
+    { re: /navigation|nav system|nissanconnect/i, score: 88, category: "nav" },
+    { re: /3rd row|third[ -]?row/i, score: 88, category: "third_row" },
+    { re: /tow|trailer|hitch/i, score: 86, category: "tow" },
+    { re: /power (front )?seats?/i, score: 85, category: "power_seats" },
+    { re: /premium audio|bose|harman|jbl|infinity/i, score: 84, category: "audio" },
+    { re: /keyless|push[ -]?button start|intelligent key|smart key/i, score: 84, category: "keyless" },
+    { re: /dual-?zone|tri-?zone|climate control/i, score: 82, category: "climate" },
+    { re: /forward collision|automatic emergency|collision (warning|braking)|rear cross/i, score: 82, category: "collision" },
+    { re: /\b(awd|4wd|4x4)\b/i, score: 80, category: "drivetrain" },
+    { re: /lane (departure|keep|centering)/i, score: 80, category: "lane" },
+    { re: /head-?up display|\bhud\b/i, score: 80, category: "hud" },
+    { re: /parking sensor|park assist/i, score: 78, category: "park" },
+    { re: /captain'?s chairs/i, score: 76, category: "captains" },
+    { re: /wireless (phone )?charg/i, score: 75, category: "wireless" },
+    { re: /off-?road (package|pkg)|sasquatch|\bz71\b|\bfx4\b/i, score: 74, category: "offroad" },
+    { re: /cold weather package|technology package|convenience package|luxury package|safety package|comfort package/i, score: 70, category: "pkg" },
+  ];
+
+  function isNarrative(s) {
+    if (s.length > 70) return true;
+    if (/\b(priced|purchased|serviced|technicians|condition|connected through|open-air feel)\b/i.test(s)) return true;
+    if (/^[a-z]/.test(s) && s.split(" ").length > 8) return true;
+    return false;
+  }
+
+  function scoreFeature(feat) {
+    if (!feat || feat.length > 100) return null;
+    if (HYPE_RE.test(feat) || JUNK_RE.test(feat) || isNarrative(feat)) return null;
+    let best = 0;
+    let category = "";
+    for (const rule of BUYER_RULES) {
+      if (rule.re.test(feat) && rule.score > best) {
+        best = rule.score;
+        category = rule.category;
+      }
+    }
+    if (!best) return null;
+    return { label: feat, score: best, category };
+  }
+
+  function preferLabel(a, b) {
+    if (b.length !== a.length) return b.length > a.length ? b : a;
+    const caps = (s) => (s.match(/[A-Z]/g) || []).length;
+    return caps(b) > caps(a) ? b : a;
+  }
+
+  function verifiedSellingDrivetrain(pack) {
+    const drive = text(pack.drivetrain);
+    if (/\b(awd|4wd|4x4)\b/i.test(drive)) return drive;
+    return "";
   }
 
   function keyEquipment(pack) {
-    const seen = new Set();
-    const out = [];
     const candidates = [
       ...asFeatureList(pack.features),
       ...asFeatureList(pack.equipment),
       ...featuresFromBody(pack.body),
     ];
-    if (!candidates.length) candidates.push(...verifiedFieldFeatures(pack));
+    const drive = verifiedSellingDrivetrain(pack);
+    if (drive) candidates.push(drive);
 
-    for (const feat of candidates) {
-      const clean = text(feat);
-      if (!clean || clean.length > 100) continue;
-      if (HYPE_RE.test(clean)) continue;
-      const key = clean.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push(clean);
-      if (out.length === 4) break;
+    const byCategory = new Map();
+    let hasCarplay = false;
+    let hasAndroid = false;
+
+    for (const raw of candidates) {
+      const clean = text(raw);
+      const scored = scoreFeature(clean);
+      if (!scored) continue;
+      if (/apple carplay/i.test(clean)) hasCarplay = true;
+      if (/android auto/i.test(clean)) hasAndroid = true;
+      const prev = byCategory.get(scored.category);
+      if (!prev || scored.score > prev.score) {
+        byCategory.set(scored.category, scored);
+      } else if (scored.score === prev.score) {
+        prev.label = preferLabel(prev.label, scored.label);
+      }
     }
-    return out;
+
+    if (hasCarplay && hasAndroid && byCategory.has("phone")) {
+      byCategory.get("phone").label = "Apple CarPlay / Android Auto";
+    }
+
+    return [...byCategory.values()]
+      .sort((a, b) => b.score - a.score || a.label.localeCompare(b.label))
+      .slice(0, 4)
+      .map((x) => displayLabel(x.label));
+  }
+
+  function displayLabel(s) {
+    if (/[A-Z]/.test(s)) return s;
+    return s.replace(/\b([a-z])/g, (ch) => ch.toUpperCase());
   }
 
   function buildTitle(pack) {

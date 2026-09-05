@@ -20,7 +20,7 @@ Title and description are generated at fill time from pack fields (`year`, `make
 `{Year} {Make} {Model} {Trim} | {engine or drivetrain or body} | ${price} | Oconomowoc WI`
 
 ## Description
-Multi-line Wisconsin shopper copy: vehicle type, Boucher Lake Country Nissan or Hyundai, price, mileage, stock, up to 4 verified equipment bullets, then the standard availability / disclaimer block.
+Multi-line Wisconsin shopper copy: vehicle type, Boucher Lake Country Nissan or Hyundai, price, mileage, stock, up to 4 **buyer-facing** verified equipment bullets (heated seats, CarPlay, moonroof, BSM, tow, AWD/4WD, etc. — never baseline fluff like gasoline, ABS, or automatic transmission), then the standard availability / disclaimer block.
 
 ## Packs
 Bundled `packs.json` loads on open. **Refresh packs** pulls the latest `packs.json` from this repo (optional `chrome.storage` override).
