@@ -1,0 +1,64 @@
+{
+  "manifest_version": 3,
+  "name": "Lot Linker Fill",
+  "version": "1.5.0",
+  "description": "Fill Marketplace + download/clean photos. Refresh inventory from GitHub. Boucher-safe bodies. You hit Post.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Lot Linker Fill",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "clipboardWrite",
+    "downloads"
+  ],
+  "host_permissions": [
+    "https://*.boucher.com/*",
+    "https://*.carscommerce.inc/*",
+    "https://*.cloudfront.net/*",
+    "https://facebook.com/*",
+    "https://vehicle-images.carscommerce.inc/*",
+    "https://www.facebook.com/*",
+    "https://www.hyundailakecountry.com/*",
+    "https://www.nissanlakecountry.com/*",
+    "https://raw.githubusercontent.com/*",
+    "https://github.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.facebook.com/*",
+        "https://facebook.com/*"
+      ],
+      "js": [
+        "content-fb.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "packs.json"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}
