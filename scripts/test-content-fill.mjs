@@ -10,7 +10,7 @@ const popup = readFileSync(new URL("../popup.js", import.meta.url), "utf8");
 const popupHtml = readFileSync(new URL("../popup.html", import.meta.url), "utf8");
 const manifest = JSON.parse(readFileSync(new URL("../manifest.json", import.meta.url), "utf8"));
 
-assert.equal(manifest.version, "2.1.2");
+assert.equal(manifest.version, "2.1.3");
 assert.deepEqual(manifest.content_scripts[0].js, ["listing-copy.js", "content-fb.js"]);
 assert.ok(!manifest.background, "service worker / photo download must be gone");
 assert.ok(!manifest.permissions.includes("downloads"));
@@ -26,6 +26,15 @@ assert.doesNotMatch(content, /downloadPhotos|photo inject|openAndPick|mileageFor
 assert.match(content, /isProtectedLabel/);
 assert.match(content, /mark\(\s*"model"/);
 assert.match(content, /mark\(\s*"description"/);
+assert.match(content, /scrollIntoView/);
+assert.match(content, /aria-placeholder/);
+assert.match(content, /tell buyers/);
+assert.match(content, /\\bdescribe\\b/);
+assert.match(content, /beforeinput/);
+assert.match(content, /descriptionHit/);
+assert.match(content, /findDescriptionField/);
+assert.match(content, /delay\(280\)|280\)/);
+assert.match(popup, /descriptionHit/);
 
 assert.doesNotMatch(popup, /downloadPhotos|copyTitle|copyBody|importPaste/);
 assert.doesNotMatch(popupHtml, /Download photos|Copy title|Import ALL-EASY-PASTE/);
