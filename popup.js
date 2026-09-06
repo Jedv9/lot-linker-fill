@@ -164,6 +164,9 @@ $("fill").onclick = async () => {
     if (res?.ok) {
       const bits = [`Filled: ${res.filled?.join(", ") || "ok"}`];
       if (res.missed?.length) bits.push(`missed: ${res.missed.join(", ")}`);
+      if (res.descriptionHit && res.filled?.includes("description")) {
+        bits.push(`via ${res.descriptionHit}`);
+      }
       status(bits.join(" · "));
     } else {
       status(res?.error || "Fill failed");

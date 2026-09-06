@@ -33,4 +33,6 @@ If a stock has fewer than 5 verified hits, the popup researches that vehicle’s
 Bundled `packs.json` loads on open. **Refresh packs** pulls the latest `packs.json` from this repo (optional `chrome.storage` override).
 
 ## Version
-2.1.2
+2.1.3
+
+Description fill walks Facebook’s real vehicle-create markup: wrapper `[aria-label="Description"]`, nested `textarea` / `[role=textbox]` / `contenteditable`, nearby “Tell buyers about your vehicle” copy, then a lone textarea fallback. Scrolls the field into view and retries once if the first pass misses.

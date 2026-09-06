@@ -14,6 +14,10 @@
     .warn { color: #b45309; }
     .fb-field { margin: 12px 0; }
     .fb-field > span { display: block; font-weight: 600; margin-bottom: 4px; }
+    .below-fold { height: 1400px; }
+    .fb-composer { margin: 12px 0; }
+    .fb-composer .hint { display: block; font-weight: 600; margin-bottom: 8px; }
+    .fb-composer .wrap { padding: 4px 0; }
   </style>
 </head>
 <body>
@@ -44,20 +48,45 @@
     <input id="mileage" aria-label="Mileage" value="87000" />
   </div>
   <div class="fb-field">
-    <span id="desc-lab">Description</span>
-    <div id="description" role="textbox" aria-labelledby="desc-lab" aria-label="Description" contenteditable="true" aria-multiline="true"></div>
+    <span>Title status</span>
+    <input id="title-status" aria-label="Title status" value="Clean" />
+  </div>
+
+  <!-- FB vehicle create: Description sits below the fold; aria-label is on the wrapper, not the editor. -->
+  <div class="below-fold" aria-hidden="true"></div>
+  <div class="fb-composer" id="desc-host">
+    <span class="hint">Tell buyers about your vehicle</span>
+    <div aria-label="Description">
+      <div class="wrap">
+        <div
+          id=":r12:"
+          data-lot="description"
+          role="textbox"
+          contenteditable="true"
+          aria-multiline="true"
+          aria-placeholder="Description"
+          data-lexical-editor="true"
+        ></div>
+      </div>
+    </div>
   </div>
 
   <script src="../listing-copy.js?v=model-line"></script>
   <script src="../content-fb.js"></script>
   <script>
+    function descEl() {
+      return document.querySelector('[data-lot="description"]');
+    }
+
     function snapshot() {
+      const d = descEl();
       return {
         year: document.getElementById("year").value,
         make: document.getElementById("make").value,
         model: document.getElementById("model").value,
         mileage: document.getElementById("mileage").value,
-        description: document.getElementById("description").innerText || document.getElementById("description").textContent,
+        titleStatus: document.getElementById("title-status").value,
+        description: (d && (d.innerText || d.textContent)) || "",
       };
     }
 
@@ -66,25 +95,31 @@
       document.getElementById("make").value = make;
       document.getElementById("model").value = "";
       document.getElementById("mileage").value = mileage;
-      document.getElementById("description").innerHTML = "";
-      document.getElementById("description").textContent = "";
+      document.getElementById("title-status").value = "Clean";
+      const d = descEl();
+      if (d) {
+        d.innerHTML = "";
+        d.textContent = "";
+      }
     }
 
-    function runFill(pack, label, preset) {
+    async function runFill(pack, label, preset) {
       resetForm(preset.year, preset.make, preset.mileage);
-      const result = LotLinkerFill.fillPack(pack);
+      const result = await LotLinkerFill.fillPack(pack);
       const fields = snapshot();
       const listing = LotLinkerListing.packToListing(pack);
       const protectedOk =
         fields.year === preset.year &&
         fields.make === preset.make &&
-        fields.mileage === preset.mileage;
+        fields.mileage === preset.mileage &&
+        fields.titleStatus === "Clean";
       const modelOk = fields.model === listing.modelLine && !/^20\d{2}\b/.test(fields.model) && !/Ford|Nissan|Hyundai/i.test(fields.model.split(" | ")[0] || "");
       const descOk = fields.description.includes("Wisconsin shoppers") && /\n/.test(fields.description);
       const keysOk = result.filled.includes("model") && result.filled.includes("description") && !result.missed.length;
-      const ok = protectedOk && modelOk && descOk && keysOk;
+      const hitOk = Boolean(result.descriptionHit);
+      const ok = protectedOk && modelOk && descOk && keysOk && hitOk;
       document.getElementById("status").textContent =
-        `${label}: filled ${result.filled.join(", ") || "none"} · missed ${result.missed.join(", ") || "none"} · ${ok ? "PASS" : "FAIL"}`;
+        `${label}: filled ${result.filled.join(", ") || "none"} · missed ${result.missed.join(", ") || "none"} · via ${result.descriptionHit || "?"} · ${ok ? "PASS" : "FAIL"}`;
       return { label, ok, result, fields, listing };
     }
 
@@ -92,28 +127,39 @@
     const nissan = {"stock":"26NU0143","year":"2026","make":"Nissan","model":"Altima","trim":"2.5 SR","bodyStyle":"Sedan 4D","mileage":"0","condition":"NEW","drivetrain":"AWD","price":"30470","rooftop":"Lake Country Nissan","body":"NEW 2026 Nissan Altima 2.5 SR · AWD. Located at Lake Country Nissan, N48W36216 E Wisconsin Ave, Oconomowoc. Stock 26NU0143. Standouts: Blind Spot Monitor · Lane Departure Warning · Parking Sensors / Assist · Forward Collision Warning · Bluetooth · Power Blue Seats. Also: Android Auto, Apple CarPlay, leatherette seats, Satellite Radio Ready. Price does not include tax, title, registration, and service fees. Call (262) 522-7200 and ask for Jed."};
     document.getElementById("fillRaptor").onclick = () => runFill(raptor, "Raptor", { year: "2012", make: "Ford", mileage: "87000" });
     document.getElementById("fillNissan").onclick = () => runFill(nissan, "Nissan", { year: "2026", make: "Nissan", mileage: "0" });
-    const want = new URLSearchParams(location.search).get("pack");
-    const report = want === "nissan"
-      ? [runFill(nissan, "Nissan", { year: "2026", make: "Nissan", mileage: "0" })]
-      : want === "raptor"
-        ? [runFill(raptor, "Raptor", { year: "2012", make: "Ford", mileage: "87000" })]
-        : [
-            runFill(raptor, "Raptor", { year: "2012", make: "Ford", mileage: "87000" }),
-            runFill(nissan, "Nissan", { year: "2026", make: "Nissan", mileage: "0" }),
-          ];
-    window.__lotLinkerReport = report;
-    document.body.dataset.report = JSON.stringify(report.map((r) => ({
-      label: r.label,
-      ok: r.ok,
-      filled: r.result.filled,
-      missed: r.result.missed,
-      model: r.fields.model,
-      modelLine: r.listing.modelLine,
-      year: r.fields.year,
-      make: r.fields.make,
-      mileage: r.fields.mileage,
-      descriptionHasNewlines: /\n/.test(r.fields.description),
-    })));
+
+    function writeReport(report) {
+      window.__lotLinkerReport = report;
+      document.body.dataset.report = JSON.stringify(report.map((r) => ({
+        label: r.label,
+        ok: r.ok,
+        filled: r.result.filled,
+        missed: r.result.missed,
+        descriptionHit: r.result.descriptionHit,
+        model: r.fields.model,
+        modelLine: r.listing.modelLine,
+        year: r.fields.year,
+        make: r.fields.make,
+        mileage: r.fields.mileage,
+        titleStatus: r.fields.titleStatus,
+        descriptionHasNewlines: /\n/.test(r.fields.description),
+        descriptionFilled: r.result.filled.includes("description") && !r.result.missed.includes("description"),
+      })));
+      document.body.dataset.reportReady = "1";
+    }
+
+    (async () => {
+      const want = new URLSearchParams(location.search).get("pack");
+      const report = want === "nissan"
+        ? [await runFill(nissan, "Nissan", { year: "2026", make: "Nissan", mileage: "0" })]
+        : want === "raptor"
+          ? [await runFill(raptor, "Raptor", { year: "2012", make: "Ford", mileage: "87000" })]
+          : [
+              await runFill(raptor, "Raptor", { year: "2012", make: "Ford", mileage: "87000" }),
+              await runFill(nissan, "Nissan", { year: "2026", make: "Nissan", mileage: "0" }),
+            ];
+      writeReport(report);
+    })();
   </script>
 </body>
 </html>
