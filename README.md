@@ -10,7 +10,7 @@ Chrome MV3 extension for Lake Country Nissan / Hyundai. Pick a stock number and 
 
 ## Use
 1. Open Facebook Marketplace → create listing
-2. Open the extension, search by stock / VIN / model
+2. Open the extension, search by stock / VIN / model — each row shows mileage and price
 3. Click **Fill model + description**
 4. You click Post
 
@@ -33,4 +33,4 @@ If a stock has fewer than 5 verified hits, the popup researches that vehicle’s
 Bundled `packs.json` loads on open. **Refresh packs** pulls the latest `packs.json` from this repo (optional `chrome.storage` override).
 
 ## Version
-2.1.1
+2.1.2

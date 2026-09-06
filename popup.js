@@ -73,6 +73,14 @@ function applyFilters() {
   });
 }
 
+function packPickerLabel(pack) {
+  if (typeof LotLinkerListing !== "undefined" && LotLinkerListing.pickerLabel) {
+    return LotLinkerListing.pickerLabel(pack);
+  }
+  const name = [pack?.year, pack?.make, pack?.model, pack?.trim].filter(Boolean).join(" ");
+  return [pack?.stock, name].filter(Boolean).join(" · ");
+}
+
 function renderList() {
   const list = $("list");
   list.innerHTML = "";
@@ -80,8 +88,7 @@ function renderList() {
   for (const p of filtered) {
     const opt = document.createElement("option");
     opt.value = p.stock;
-    const storeShort = (p.rooftop || "").includes("Hyundai") ? "HY" : "NI";
-    opt.textContent = `${p.stock} · ${storeShort} · ${p.year} ${p.make} ${p.model} ${p.trim || ""}`.trim();
+    opt.textContent = packPickerLabel(p);
     list.appendChild(opt);
   }
   if (!filtered.length) status("No matches");
@@ -91,6 +98,8 @@ function renderList() {
 
 function renderListing(pack) {
   const listing = listingFor(pack);
+  const pick = $("mPick");
+  if (pick) pick.textContent = packPickerLabel(pack);
   $("mTitle").textContent = listing.modelLine || listing.title;
   $("mBody").textContent = listing.body;
 }
