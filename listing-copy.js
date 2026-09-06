@@ -40,6 +40,17 @@
     return n.toLocaleString("en-US");
   }
 
+  function mileageLabel(pack) {
+    const miles = formatMileage(pack);
+    return miles === "NEW" ? "NEW" : `${miles} mi`;
+  }
+
+  function pickerLabel(pack) {
+    const p = pack || {};
+    const name = [p.year, p.make, p.model, p.trim].map(text).filter(Boolean).join(" ");
+    return [text(p.stock), name, mileageLabel(p), `$${formatPrice(p.price)}`].filter(Boolean).join(" · ");
+  }
+
   function vehicleType(pack) {
     const body = text(pack.bodyStyle).toLowerCase();
     const model = text(pack.model).toLowerCase();
@@ -474,5 +485,7 @@
     keyEquipment,
     formatPrice,
     formatMileage,
+    mileageLabel,
+    pickerLabel,
   };
 });

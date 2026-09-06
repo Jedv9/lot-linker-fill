@@ -10,7 +10,7 @@ const popup = readFileSync(new URL("../popup.js", import.meta.url), "utf8");
 const popupHtml = readFileSync(new URL("../popup.html", import.meta.url), "utf8");
 const manifest = JSON.parse(readFileSync(new URL("../manifest.json", import.meta.url), "utf8"));
 
-assert.equal(manifest.version, "2.1.1");
+assert.equal(manifest.version, "2.1.2");
 assert.deepEqual(manifest.content_scripts[0].js, ["listing-copy.js", "content-fb.js"]);
 assert.ok(!manifest.background, "service worker / photo download must be gone");
 assert.ok(!manifest.permissions.includes("downloads"));
@@ -30,8 +30,11 @@ assert.match(content, /mark\(\s*"description"/);
 assert.doesNotMatch(popup, /downloadPhotos|copyTitle|copyBody|importPaste/);
 assert.doesNotMatch(popupHtml, /Download photos|Copy title|Import ALL-EASY-PASTE/);
 assert.match(popupHtml, /Fill model \+ description/);
+assert.match(popupHtml, /id="mPick"/);
 assert.match(popup, /LOT_LINKER_FILL/);
 assert.match(popup, /res\.missed/);
+assert.match(popup, /pickerLabel|packPickerLabel/);
+assert.doesNotMatch(popup, /storeShort/);
 
 const nissan = listing.fromPack(packs.find((p) => p.stock === "26NU0143"));
 assert.ok(nissan.body.includes("\n\n"), "description must keep blank lines");

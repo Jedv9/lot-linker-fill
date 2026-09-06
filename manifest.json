@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Lot Linker Fill",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "Fill Marketplace vehicle Model + description from stock. Researches VDP when equipment is thin. You hit Post.",
   "action": {
     "default_popup": "popup.html",

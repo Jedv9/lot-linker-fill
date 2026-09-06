@@ -48,6 +48,11 @@ function assertLayout(body) {
 
 const raptorPack = pack("PU1392");
 assert.equal(
+  listing.pickerLabel(raptorPack),
+  "PU1392 · 2012 Ford F-150 SVT Raptor · 109,782 mi · $26,900"
+);
+assert.equal(listing.mileageLabel(raptorPack), "109,782 mi");
+assert.equal(
   listing.buildModelLine(raptorPack),
   "F-150 SVT Raptor | 4WD | $26,900 | Oconomowoc WI"
 );
@@ -64,6 +69,11 @@ assert.ok(raptorListing.body.includes("\n\n"), "description must keep blank line
 assertLayout(raptorListing.body);
 
 const nissan = listing.fromPack(pack("26NU0143"));
+assert.equal(
+  listing.pickerLabel(pack("26NU0143")),
+  "26NU0143 · 2026 Nissan Altima 2.5 SR · NEW · $30,470"
+);
+assert.equal(listing.mileageLabel(pack("26NU0143")), "NEW");
 assert.equal(nissan.modelLine, "Altima 2.5 SR | AWD | $30,470 | Oconomowoc WI");
 assert.doesNotMatch(nissan.modelLine, /2026|Nissan/);
 assert.equal(nissan.title, "2026 Nissan Altima 2.5 SR | AWD | $30,470 | Oconomowoc WI");
