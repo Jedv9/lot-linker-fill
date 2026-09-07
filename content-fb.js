@@ -1,4 +1,4 @@
-// Lot Linker Fill — Year/Make/Price/Mileage/body/colors/fuel + Model + description + photos.
+// Lot Linker Fill — Vehicle type (Car/Truck) first, then Year/Make/Price/Mileage/body/colors/fuel + Model + description + photos.
 // Never VIN. Never clean-title checkbox. Never vehicle condition. Never Post.
 function isMarketplacePath() {
   return /marketplace/i.test(location.pathname + location.href);
@@ -318,7 +318,8 @@ function isProtectedLabel(lab) {
     /\bfuel\b/.test(lab) ||
     /clean title/.test(lab) ||
     /title status/.test(lab) ||
-    /vehicle condition/.test(lab)
+    /vehicle condition/.test(lab) ||
+    /vehicle type/.test(lab)
   );
 }
 
@@ -1161,7 +1162,7 @@ function markIfPresent(mark, key, packHas, ok) {
 }
 
 async function fillPackOnce(pack) {
-  // Fill when pack has a value: Year, Make, Price, Mileage, Body style,
+  // FIRST Vehicle type = Car/Truck, then Year, Make, Price, Mileage, Body style,
   // Exterior color, Interior color, Fuel, Model title line, Description.
   // Never VIN. Never clean-title checkbox. Never vehicle condition.
   const p = pack || {};
@@ -1170,7 +1171,17 @@ async function fillPackOnce(pack) {
   const missed = [];
   const mark = (key, ok) => (ok ? filled : missed).push(key);
   const modelLine = listing.modelLine || "";
-  const specExclude = [...CHOICE_EXCLUDE, /\byear\b/, /\bmake\b/, /\bmodel\b/, /\bprice\b/, /\bmileage\b/];
+  const specExclude = [...CHOICE_EXCLUDE, /\byear\b/, /\bmake\b/, /\bmodel\b/, /\bprice\b/, /\bmileage\b/, /vehicle type/];
+
+  mark(
+    "vehicleType",
+    await fillChoiceAny(
+      [/^vehicle type$/, /\bvehicle type\b/],
+      ["Car/Truck", "Car / Truck"],
+      [...CHOICE_EXCLUDE, /\byear\b/, /\bmake\b/, /\bmodel\b/, /\bvin\b/, /body style/, /\bprice\b/]
+    )
+  );
+  await delay(400);
 
   const yearVal = isBlankPackValue(p.year) ? "" : String(p.year).trim();
   markIfPresent(
@@ -1274,7 +1285,7 @@ async function fillPackOnce(pack) {
     modelLine,
     title: listing.title,
     descriptionHit: desc.via || "",
-    notes: "Year/Make/Price/Mileage/body/colors/fuel + Model + description + photos. Never VIN. You hit Post.",
+    notes: "Vehicle type first, then Year/Make/Price/Mileage/body/colors/fuel + Model + description + photos. Never VIN. You hit Post.",
   };
 }
 
@@ -1291,13 +1302,14 @@ function mergePhotoResult(textResult, photoResult) {
     filled: [...new Set(filled)],
     missed: [...new Set(missed)],
     photos,
-    notes: "Year/Make/Price/Mileage/body/colors/fuel + Model + description + photos. Never VIN. You hit Post.",
+    notes: "Vehicle type first, then Year/Make/Price/Mileage/body/colors/fuel + Model + description + photos. Never VIN. You hit Post.",
   };
 }
 
 async function fillPack(pack) {
   let textResult = await fillPackOnce(pack);
   const retryKeys = [
+    "vehicleType",
     "description",
     "year",
     "make",

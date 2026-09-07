@@ -33,6 +33,10 @@
   <div id="status"></div>
 
   <div class="fb-field">
+    <span>Vehicle type</span>
+    <div id="vehicle-type" role="combobox" aria-label="Vehicle type" aria-haspopup="listbox" tabindex="0"></div>
+  </div>
+  <div class="fb-field">
     <span>Year</span>
     <div id="year" role="combobox" aria-label="Year" aria-haspopup="listbox" tabindex="0"></div>
   </div>
@@ -130,6 +134,7 @@
         list.hidden = !list.hidden;
       });
     }
+    wireCombo("vehicle-type", ["Car/Truck", "Boat", "Motorcycle"]);
     wireCombo("year", ["2012", "2026", "2016"]);
     wireCombo("make", ["Ford", "Nissan", "Hyundai"]);
     wireCombo("body-style", ["Sedan", "SUV", "Truck", "Hatchback", "Coupe", "Minivan", "Wagon"]);
@@ -144,6 +149,7 @@
     function snapshot() {
       const d = descEl();
       return {
+        vehicleType: document.getElementById("vehicle-type").textContent.trim(),
         year: document.getElementById("year").textContent.trim(),
         make: document.getElementById("make").textContent.trim(),
         model: document.getElementById("model").value,
@@ -162,6 +168,8 @@
     }
 
     function resetForm(mileage) {
+      document.getElementById("vehicle-type").textContent = "";
+      document.getElementById("vehicle-type").dataset.value = "";
       document.getElementById("year").textContent = "";
       document.getElementById("year").dataset.value = "";
       document.getElementById("make").textContent = "";
@@ -197,9 +205,10 @@
       const titleOk = fields.titleStatus === "Clean" && !fields.cleanTitle && fields.condition === "";
       const modelOk = fields.model === listing.modelLine && !/^20\d{2}\b/.test(fields.model) && !/Ford|Nissan|Hyundai/i.test(fields.model.split(" | ")[0] || "");
       const descOk = fields.description.includes("Wisconsin shoppers") && /\n/.test(fields.description);
-      const keysOk = ["year", "make", "price", "model", "description", "mileage"].every((k) => result.filled.includes(k)) && !result.missed.length && !result.filled.includes("vin") && !result.filled.includes("condition");
+      const typeOk = fields.vehicleType === "Car/Truck" && result.filled.includes("vehicleType");
+      const keysOk = ["vehicleType", "year", "make", "price", "model", "description", "mileage"].every((k) => result.filled.includes(k)) && !result.missed.length && !result.filled.includes("vin") && !result.filled.includes("condition");
       const hitOk = Boolean(result.descriptionHit);
-      const ok = yearOk && makeOk && priceOk && vinOk && mileageOk && titleOk && modelOk && descOk && keysOk && hitOk;
+      const ok = typeOk && yearOk && makeOk && priceOk && vinOk && mileageOk && titleOk && modelOk && descOk && keysOk && hitOk;
       document.getElementById("status").textContent =
         `${label}: filled ${result.filled.join(", ") || "none"} · missed ${result.missed.join(", ") || "none"} · via ${result.descriptionHit || "?"} · ${ok ? "PASS" : "FAIL"}`;
       return { label, ok, result, fields, listing };
@@ -220,6 +229,7 @@
         descriptionHit: r.result.descriptionHit,
         model: r.fields.model,
         modelLine: r.listing.modelLine,
+        vehicleType: r.fields.vehicleType,
         year: r.fields.year,
         make: r.fields.make,
         price: r.fields.price,

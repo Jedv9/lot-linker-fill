@@ -25,6 +25,8 @@ assert.ok(report.length >= 1, "expected fixture fill reports");
 
 for (const row of report) {
   assert.equal(row.ok, true, `${row.label} fixture failed: ${JSON.stringify(row)}`);
+  assert.ok(row.filled.includes("vehicleType"), `${row.label} vehicle type`);
+  assert.equal(row.vehicleType, "Car/Truck");
   assert.ok(row.filled.includes("year"), `${row.label} year`);
   assert.ok(row.filled.includes("make"), `${row.label} make`);
   assert.ok(row.filled.includes("price"), `${row.label} price`);

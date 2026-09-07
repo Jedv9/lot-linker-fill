@@ -12,7 +12,7 @@ const manifest = JSON.parse(readFileSync(new URL("../manifest.json", import.meta
 const background = readFileSync(new URL("../background.js", import.meta.url), "utf8");
 const zipBuild = readFileSync(new URL("./build-zip.sh", import.meta.url), "utf8");
 
-assert.equal(manifest.version, "2.2.3");
+assert.equal(manifest.version, "2.2.4");
 assert.deepEqual(manifest.content_scripts[0].js, ["listing-copy.js", "photos.js", "content-fb.js"]);
 assert.equal(manifest.background.service_worker, "background.js");
 assert.ok(manifest.permissions.includes("downloads"), "fallback save uses chrome.downloads");
@@ -46,6 +46,8 @@ assert.match(content, /"bodyStyle"/);
 assert.match(content, /"exterior"/);
 assert.match(content, /"interior"/);
 assert.match(content, /"fuel"/);
+assert.match(content, /"vehicleType"/);
+assert.match(content, /Car\/Truck/);
 assert.doesNotMatch(content, /fillText\(\s*\[\s*\/\\bvin\\b/);
 assert.match(content, /isProtectedLabel/);
 assert.match(content, /mark\(\s*"model"/);

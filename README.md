@@ -11,7 +11,7 @@ Chrome MV3 extension for Lake Country Nissan / Hyundai. Pick a stock number and 
 ## Use
 1. Open Facebook Marketplace → create **vehicle** listing (`/marketplace/create/vehicle` or equivalent)
 2. Open the extension, search by stock / VIN / model — each row shows mileage and price
-3. Click **Fill** (Year, Make, Price, Mileage, body, colors, fuel, Model, description, photos)
+3. Click **Fill** (Vehicle type Car/Truck first, then Year, Make, Price, Mileage, body, colors, fuel, Model, description, photos)
 4. You click Post — the extension never publishes
 
 Jed should not download photos separately. **Save photos (fallback)** is only if Marketplace’s picker misses (Facebook UI change / no file input).
@@ -45,9 +45,9 @@ Bundled `packs.json` loads on open. **Refresh packs** pulls the latest `packs.js
 ```
 bash scripts/build-zip.sh
 ```
-Writes `dist/lot-linker-fill-2.2.3.zip` and `dist/lot-linker-fill.zip` (unpacked folder inside the zip).
+Writes `dist/lot-linker-fill-2.2.4.zip` and `dist/lot-linker-fill.zip` (unpacked folder inside the zip).
 
 ## Version
-2.2.3
+2.2.4
 
-One-click Fill writes **Year**, **Make**, **Price**, **Mileage**, **Body style**, **Exterior color**, **Interior color**, **Fuel type**, **Model** title line, **Description**, and **photos**. **VIN is never written**. Clean title and vehicle condition are never written. Description fill still walks Facebook’s vehicle-create markup. Year/Make/body/colors/fuel open `[role=combobox]` then click a matching `[role=option]`. Price and Mileage use digits only.
+One-click Fill **first** sets **Vehicle type** to **Car/Truck** (Year/Make/etc. will not take until this is set), then writes **Year**, **Make**, **Price**, **Mileage**, **Body style**, **Exterior color**, **Interior color**, **Fuel type**, **Model** title line, **Description**, and **photos**. **VIN is never written**. Clean title and vehicle condition are never written. Description fill still walks Facebook’s vehicle-create markup. Comboboxes open then click a matching `[role=option]`. Price and Mileage use digits only.
