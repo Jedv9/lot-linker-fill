@@ -1,4 +1,5 @@
-// Lot Linker Fill — Year/Make/Price + Model + description + photos. Never Post.
+// Lot Linker Fill — Year/Make/Price + Model + description + photos.
+// Never VIN. Never mileage/colors. Never Post.
 function isMarketplacePath() {
   return /marketplace/i.test(location.pathname + location.href);
 }
@@ -46,6 +47,7 @@ const DESC_ATTR_SELECTORS = [
 
 function setNativeValue(el, value) {
   if (!el || value == null) return false;
+  if (isVinControl(el)) return false;
   const next = String(value);
   const proto =
     el instanceof HTMLTextAreaElement
@@ -149,8 +151,10 @@ function resolveEditable(el) {
 }
 
 function fillMultiline(el, value) {
+  if (isVinControl(el)) return false;
   const text = String(value);
   const target = resolveEditable(el) || el;
+  if (isVinControl(target)) return false;
   scrollElIntoView(target);
   try {
     target.focus();
@@ -312,7 +316,19 @@ function isProtectedLabel(lab) {
 }
 
 function isVinLabel(lab) {
-  return /\bvin\b/.test(lab) || /vehicle identification/.test(lab);
+  const t = String(lab || "").toLowerCase();
+  return /\bvin\b/.test(t) || /vehicle identification/.test(t);
+}
+
+/** Hard stop: never write the Marketplace VIN field. */
+function isVinControl(el) {
+  if (!el) return false;
+  if (isVinLabel(ownLabel(el))) return true;
+  const bits = [el.name, el.id, el.getAttribute?.("autocomplete"), el.getAttribute?.("aria-label")]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return /\bvin\b/.test(bits) || /vehicle identification/.test(bits);
 }
 
 function ownLabel(el) {
@@ -426,7 +442,7 @@ function controlInside(root) {
 }
 
 function usableDescription(el) {
-  if (!el) return false;
+  if (!el || isVinControl(el)) return false;
   const lab = labelText(el);
   if (isProtectedLabel(lab)) return false;
   if (DESC_EXCLUDE.some((x) => x.test(lab))) return false;
@@ -436,6 +452,7 @@ function usableDescription(el) {
 function findField(matchers, { exclude = [], prefer } = {}) {
   const hits = [];
   for (const el of allInputs()) {
+    if (isVinControl(el)) continue;
     const own = ownLabel(el);
     if (isVinLabel(own)) continue;
     if (exclude.some((x) => x.test(own))) continue;
@@ -467,8 +484,7 @@ function findField(matchers, { exclude = [], prefer } = {}) {
 function fillText(matchers, value, exclude, prefer) {
   if (value == null || value === "") return false;
   const el = findField(matchers, { exclude, prefer });
-  if (!el) return false;
-  if (isVinLabel(ownLabel(el))) return false;
+  if (!el || isVinControl(el)) return false;
   return fillMultiline(el, value);
 }
 
@@ -487,7 +503,7 @@ function findChoiceControl(matchers, exclude = []) {
     const own = ownLabel(el);
     const lab = own || labelText(el);
     if (!lab) continue;
-    if (isVinLabel(own) || isVinLabel(lab)) continue;
+    if (isVinControl(el) || isVinLabel(own) || isVinLabel(lab)) continue;
     if (exclude.some((x) => x.test(own) || x.test(lab))) continue;
     const ownHit = own && matchers.some((m) => m.test(own));
     const deepHit = matchers.some((m) => m.test(lab) || m.test(labelText(el)));
@@ -500,7 +516,7 @@ function findChoiceControl(matchers, exclude = []) {
       const own = ownLabel(el);
       const lab = own || labelText(el);
       if (!lab) continue;
-      if (isVinLabel(own) || isVinLabel(lab)) continue;
+      if (isVinControl(el) || isVinLabel(own) || isVinLabel(lab)) continue;
       if (exclude.some((x) => x.test(own) || x.test(lab))) continue;
       if (!matchers.some((m) => m.test(own) || m.test(lab))) continue;
       if (el.closest("input, textarea, [contenteditable]")) continue;
@@ -570,7 +586,7 @@ function choiceLooksSet(el, value) {
 async function fillChoice(matchers, value, exclude = []) {
   if (isBlankPackValue(value)) return false;
   const el = findChoiceControl(matchers, exclude) || findField(matchers, { exclude });
-  if (!el || isUnsafeClickTarget(el) || isVinLabel(labelText(el))) return false;
+  if (!el || isUnsafeClickTarget(el) || isVinControl(el) || isVinLabel(ownLabel(el))) return false;
   if (el instanceof HTMLSelectElement) return fillNativeSelect(el, value);
   if ((el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) && fillMultiline(el, value) && looksFilled(el, value)) {
     return true;
@@ -995,7 +1011,7 @@ function fillDescription(value) {
   if (value == null || value === "") return { ok: false, via: "" };
   const found = findDescriptionField();
   if (!found?.el) return { ok: false, via: "" };
-  if (isProtectedLabel(labelText(found.el))) return { ok: false, via: "" };
+  if (isVinControl(found.el) || isProtectedLabel(labelText(found.el))) return { ok: false, via: "" };
   scrollElIntoView(found.el);
   const ok = fillMultiline(found.el, value);
   return { ok, via: ok ? found.via : "" };
@@ -1035,6 +1051,8 @@ function markIfPresent(mark, key, packHas, ok) {
 }
 
 async function fillPackOnce(pack) {
+  // Filled only: Year, Make, Price, Model title line, Description.
+  // Never VIN. Never mileage, colors, trim, or body style.
   const p = pack || {};
   const listing = listingFromPack(p);
   const filled = [];
@@ -1087,7 +1105,7 @@ async function fillPackOnce(pack) {
     modelLine,
     title: listing.title,
     descriptionHit: desc.via || "",
-    notes: "Year/Make/Price + Model + description + photos. You hit Post.",
+    notes: "Year/Make/Price + Model + description + photos. Never VIN. You hit Post.",
   };
 }
 
@@ -1104,7 +1122,7 @@ function mergePhotoResult(textResult, photoResult) {
     filled: [...new Set(filled)],
     missed: [...new Set(missed)],
     photos,
-    notes: "Year/Make/Price + Model + description + photos. You hit Post.",
+    notes: "Year/Make/Price + Model + description + photos. Never VIN. You hit Post.",
   };
 }
 

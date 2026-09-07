@@ -45,9 +45,9 @@ Bundled `packs.json` loads on open. **Refresh packs** pulls the latest `packs.js
 ```
 bash scripts/build-zip.sh
 ```
-Writes `dist/lot-linker-fill-2.2.1.zip` and `dist/lot-linker-fill.zip` (unpacked folder inside the zip).
+Writes `dist/lot-linker-fill-2.2.2.zip` and `dist/lot-linker-fill.zip` (unpacked folder inside the zip).
 
 ## Version
-2.2.1
+2.2.2
 
-One-click Fill writes **Year** (combobox / `aria-label="Year"`), **Make** (combobox), **Price** (numeric input), **Model** title line, **Description**, and **photos**. VIN is never written. Description fill still walks Facebook’s vehicle-create markup: wrapper `[aria-label="Description"]`, nested `textarea` / `[role=textbox]` / `contenteditable`. Year/Make open `[role=combobox]` then click a matching `[role=option]`. Price uses `_valueTracker` + input/change on the Price field.
+One-click Fill writes **only** **Year** (combobox / `aria-label="Year"`), **Make** (combobox), **Price** (numeric input), **Model** title line, **Description**, and **photos**. **VIN is never written** — the VIN field is skipped at find and at write. Mileage, colors, trim, and body style are not filled. Description fill still walks Facebook’s vehicle-create markup: wrapper `[aria-label="Description"]`, nested `textarea` / `[role=textbox]` / `contenteditable`. Year/Make open `[role=combobox]` then click a matching `[role=option]`. Price uses `_valueTracker` + input/change on the Price field.
