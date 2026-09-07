@@ -18,24 +18,34 @@ jobs:
           import json
           from pathlib import Path
           packs = []
+          gens = set()
           for i in range(1, 21):
               p = Path(f"packs-part{i}.json")
               if not p.exists():
                   raise SystemExit(f"missing {p}")
               d = json.loads(p.read_text())
+              gens.add(str(d.get("generated") or ""))
               packs.extend(d.get("packs") or [])
-          out = {"generated": "2026-09-04", "count": len(packs), "packs": packs}
+          if len(gens) != 1:
+              print("skip assemble: mixed generated dates", sorted(gens))
+              raise SystemExit(0)
+          gen = next(iter(gens))
+          out = {"generated": gen, "count": len(packs), "packs": packs,
+                 "note": "photoUrls capped at 8 for GitHub Refresh; assembled from packs-part1..20"}
           Path("packs.json").write_text(json.dumps(out, separators=(",", ":")))
-          print("wrote packs.json count=", len(packs))
+          print("wrote packs.json count=", len(packs), "generated=", gen)
           PY
       - name: Commit packs.json
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ ! -f packs.json ]; then echo "no packs.json"; exit 0; fi
           git add packs.json
           if git diff --staged --quiet; then
             echo "no change"
           else
-            git commit -m "Assemble packs.json (208 packs) from part files"
+            COUNT=$(python3 -c "import json; print(json.load(open('packs.json'))['count'])")
+            GEN=$(python3 -c "import json; print(json.load(open('packs.json')).get('generated',''))")
+            git commit -m "Assemble packs.json ($COUNT packs, $GEN) from part files"
             git push
           fi
