@@ -1,20 +1,22 @@
 # Lot Linker Fill
 
-Chrome MV3 extension for Lake Country Nissan / Hyundai. Pick a stock number and fill **only** the Facebook Marketplace vehicle **Model** field and **Description**. You always hit Post. Year, Make, and Mileage are left alone.
+Chrome MV3 extension for Lake Country Nissan / Hyundai. Pick a stock number and **Fill** Facebook Marketplace vehicle **Model**, **Description**, and **photos** in one click. You always hit Post. Year, Make, and Mileage are left alone.
 
 **Repo:** https://github.com/Jedv9/lot-linker-fill
 
 ## Install
-1. Clone or download this folder
+1. Clone this folder, or unzip `dist/lot-linker-fill.zip` from `bash scripts/build-zip.sh`
 2. Chrome → `chrome://extensions` → Developer mode → Load unpacked → this folder (`manifest.json`)
 
 ## Use
-1. Open Facebook Marketplace → create listing
+1. Open Facebook Marketplace → create **vehicle** listing (`/marketplace/create/vehicle` or equivalent)
 2. Open the extension, search by stock / VIN / model — each row shows mileage and price
-3. Click **Fill model + description**
-4. You click Post
+3. Click **Fill** (one click: model + description + photos into the draft)
+4. You click Post — the extension never publishes
 
-Model line and description are generated at fill time from pack fields (`year`, `make`, `model`, `trim`, `price`, `mileage`, `stock`, `rooftop`, `bodyStyle`, `drivetrain`, `engine` if present, plus verified features from `features` / `equipment` / pack `body` standouts). Nothing else is filled. Photos stay manual.
+Jed should not download photos separately. **Save photos (fallback)** is only if Marketplace’s picker misses (Facebook UI change / no file input).
+
+Model line and description are generated at fill time from pack fields (`year`, `make`, `model`, `trim`, `price`, `mileage`, `stock`, `rooftop`, `bodyStyle`, `drivetrain`, `engine` if present, plus verified features from `features` / `equipment` / pack `body` standouts). Year / Make / Mileage stay untouched.
 
 ## Model line (Facebook vehicle create)
 `{Model} {Trim} | {engine or drivetrain or body} | ${price} | Oconomowoc WI`
@@ -29,10 +31,23 @@ Multi-line Wisconsin shopper copy: vehicle type, Boucher Lake Country Nissan or 
 
 If a stock has fewer than 5 verified hits, the popup researches that vehicle’s VDP (`vdpUrl`) and NHTSA VIN decode (AWD/4WD only), 10s timeout, then falls back to pack features.
 
+## Photos
+Fill fetches unit photos from pack `photoUrls` and/or the VDP page (`vehicle-images.carscommerce.inc` and a few dealer CDNs), strips the Boucher red banner (same crop as v1.6), and assigns `File` objects onto Marketplace’s `<input type="file" multiple>` (or dropzone). Status reports `filled model · description · N photos` or `missed: photos` with a reason.
+
+The service worker does the fetch + strip so Facebook is not sent as `Referer`. Host permissions cover dealer VDPs and photo CDNs. The content script waits/retries for the photo picker (slow create-page loads) and never clicks Post / Publish / Next.
+
+Facebook caveats: the picker is often a hidden file input behind “Add photos”. Marketplace may cap how many images stick; extras are dropped by FB, not posted. If the composer has not reached the vehicle photo step, Fill reports a missed photo picker — stay on create/vehicle and retry.
+
 ## Packs
 Bundled `packs.json` loads on open. **Refresh packs** pulls the latest `packs.json` from this repo (optional `chrome.storage` override).
 
-## Version
-2.1.3
+## Package
+```
+bash scripts/build-zip.sh
+```
+Writes `dist/lot-linker-fill-2.2.0.zip` and `dist/lot-linker-fill.zip` (unpacked folder inside the zip).
 
-Description fill walks Facebook’s real vehicle-create markup: wrapper `[aria-label="Description"]`, nested `textarea` / `[role=textbox]` / `contenteditable`, nearby “Tell buyers about your vehicle” copy, then a lone textarea fallback. Scrolls the field into view and retries once if the first pass misses.
+## Version
+2.2.0
+
+One-click Fill writes Model + Description and uploads listing photos. Description fill still walks Facebook’s vehicle-create markup: wrapper `[aria-label="Description"]`, nested `textarea` / `[role=textbox]` / `contenteditable`, nearby “Tell buyers about your vehicle” copy, then a lone textarea fallback.

@@ -27,7 +27,7 @@
 <body>
   <header>
     <h1>Lot Linker Fill</h1>
-    <div class="sub">Model + description only · you always hit Post</div>
+    <div class="sub">Model + description + photos · you always hit Post</div>
   </header>
   <div class="wrap">
     <input id="q" type="search" placeholder="Search stock / VIN / model…" autocomplete="off" />
@@ -38,18 +38,21 @@
     <div id="card" class="card" hidden>
       <div class="pick" id="mPick"></div>
       <div class="title" id="mTitle"></div>
+      <div class="sub" id="mPhotos"></div>
       <div class="body" id="mBody"></div>
     </div>
     <div class="row">
-      <button id="fill" disabled>Fill model + description</button>
+      <button id="fill" disabled>Fill</button>
+      <button class="secondary" id="savePhotos" disabled title="Only if Marketplace photo picker misses">Save photos (fallback)</button>
       <button class="secondary" id="refreshInventory">Refresh packs</button>
     </div>
     <div class="sub" id="refreshMeta"></div>
     <div class="status" id="status"></div>
-    <p class="warn">Open Marketplace → create listing, pick a stock, Fill, then you click Post.</p>
+    <p class="warn">Open Marketplace → create vehicle listing, pick a stock, Fill (model + description + photos), then you click Post.</p>
   </div>
   <script src="config.js"></script>
   <script src="listing-copy.js"></script>
+  <script src="photos.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

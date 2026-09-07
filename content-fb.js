@@ -1,4 +1,4 @@
-// Lot Linker Fill — Model + description only. Never Post. Never Year/Make/Mileage.
+// Lot Linker Fill — Model + description + photos. Never Post. Never Year/Make/Mileage.
 function isMarketplacePath() {
   return /marketplace/i.test(location.pathname + location.href);
 }
@@ -519,6 +519,251 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+const PHOTO_LABEL_RE = /\b(photo|photos|picture|pictures|image|images|gallery|media)\b/i;
+const PHOTO_EXCLUDE_RE = /\b(profile|avatar|cover photo|comment|messenger|story)\b/i;
+const PHOTO_REVEAL_RE = /^(add photos?|upload photos?|add pictures?|choose (files?|photos?)|photos|add media)$/i;
+const NEVER_CLICK_RE = /^(post|publish|next|submit|share|create listing|publish listing)$/i;
+
+function photoContext(el) {
+  if (!el) return "";
+  const bits = [
+    el.getAttribute("aria-label"),
+    el.getAttribute("title"),
+    el.getAttribute("name"),
+    el.getAttribute("accept"),
+    el.getAttribute("id"),
+  ];
+  let node = el;
+  for (let d = 0; d < 6 && node; d++) {
+    bits.push(node.getAttribute?.("aria-label"));
+    bits.push(node.getAttribute?.("aria-placeholder"));
+    const labeledBy = node.getAttribute?.("aria-labelledby");
+    if (labeledBy) {
+      for (const id of labeledBy.split(/\s+/)) {
+        const n = document.getElementById(id);
+        if (n) bits.push(n.textContent);
+      }
+    }
+    node = node.parentElement;
+  }
+  return bits.filter(Boolean).map(shortText).join(" ").toLowerCase();
+}
+
+function acceptsImages(input) {
+  const accept = (input.getAttribute("accept") || "").toLowerCase();
+  return !accept || accept.includes("image") || accept.includes("*/*") || accept.includes("*");
+}
+
+function findPhotoFileInput() {
+  const inputs = [...document.querySelectorAll('input[type="file"]')];
+  const scored = [];
+  for (const el of inputs) {
+    if (el.disabled) continue;
+    if (!acceptsImages(el)) continue;
+    const lab = photoContext(el);
+    if (PHOTO_EXCLUDE_RE.test(lab) && !PHOTO_LABEL_RE.test(lab)) continue;
+    let score = 0;
+    if (el.multiple) score += 3;
+    if (/image/.test(el.getAttribute("accept") || "")) score += 2;
+    if (PHOTO_LABEL_RE.test(lab)) score += 6;
+    if (el.closest("[role=dialog], [role=main], form")) score += 1;
+    scored.push({ el, score, lab, via: el.multiple ? 'input[type=file][multiple]' : 'input[type=file]' });
+  }
+  scored.sort((a, b) => b.score - a.score);
+  return scored[0] || null;
+}
+
+function findPhotoDropzone() {
+  const nodes = [
+    ...document.querySelectorAll("[aria-label], [role=button], button, [tabindex], div, span"),
+  ];
+  for (const n of nodes) {
+    const lab = shortText(n.getAttribute("aria-label") || n.getAttribute("title") || "");
+    if (PHOTO_REVEAL_RE.test(lab) && !NEVER_CLICK_RE.test(lab)) return n;
+    const t = shortText(n.textContent);
+    if (t && t.length < 28 && PHOTO_REVEAL_RE.test(t) && !NEVER_CLICK_RE.test(t)) {
+      if (n.querySelector?.("input, textarea, [contenteditable]")) continue;
+      return n;
+    }
+  }
+  return null;
+}
+
+function isUnsafeClickTarget(el) {
+  if (!el) return true;
+  const t = shortText(el.getAttribute("aria-label") || el.textContent || "");
+  return NEVER_CLICK_RE.test(t) || /\b(post|publish) listing\b/i.test(t);
+}
+
+function revealPhotoPicker() {
+  try {
+    window.scrollTo(0, 0);
+  } catch {
+    /* ignore */
+  }
+  const scroller = document.querySelector("[role=main], [role=dialog]") || document.scrollingElement;
+  if (scroller) {
+    try {
+      scroller.scrollTop = 0;
+    } catch {
+      /* ignore */
+    }
+  }
+  const zone = findPhotoDropzone();
+  if (zone && !isUnsafeClickTarget(zone)) {
+    scrollElIntoView(zone);
+    try {
+      zone.click();
+    } catch {
+      /* ignore */
+    }
+    return zone;
+  }
+  return null;
+}
+
+function assignFilesToInput(input, files) {
+  if (!input || !files?.length) return false;
+  const dt = new DataTransfer();
+  for (const f of files) dt.items.add(f);
+  input.files = dt.files;
+  try {
+    input.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
+  } catch {
+    /* ignore */
+  }
+  input.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
+  return input.files && input.files.length === files.length;
+}
+
+function dropFilesOn(target, files) {
+  if (!target || !files?.length) return false;
+  const dt = new DataTransfer();
+  for (const f of files) dt.items.add(f);
+  for (const type of ["dragenter", "dragover", "drop"]) {
+    try {
+      target.dispatchEvent(
+        new DragEvent(type, { bubbles: true, cancelable: true, composed: true, dataTransfer: dt })
+      );
+    } catch {
+      /* older engines */
+    }
+  }
+  return true;
+}
+
+async function waitForPhotoInput({ tries = 16, delayMs = 280 } = {}) {
+  let last = findPhotoFileInput();
+  if (last) return last;
+  revealPhotoPicker();
+  for (let i = 0; i < tries; i++) {
+    await delay(delayMs);
+    last = findPhotoFileInput();
+    if (last) return last;
+    if (i === 3 || i === 8) revealPhotoPicker();
+  }
+  return last;
+}
+
+function filesFromPrepared(payloads) {
+  if (typeof LotLinkerPhotos !== "undefined" && LotLinkerPhotos.filesFromTransfer) {
+    return LotLinkerPhotos.filesFromTransfer(payloads);
+  }
+  return [];
+}
+
+async function loadPhotoFiles(pack) {
+  const empty = { ok: false, files: [], wanted: 0, stripped: 0, source: "", error: "No photos" };
+  if (typeof chrome !== "undefined" && chrome.runtime?.id && chrome.runtime.sendMessage) {
+    try {
+      const res = await new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({ type: "LOT_LINKER_PREPARE_PHOTOS", pack }, (r) => {
+          const err = chrome.runtime.lastError;
+          if (err) reject(new Error(err.message || String(err)));
+          else resolve(r);
+        });
+      });
+      if (res?.ok && res.files?.length) {
+        return {
+          ok: true,
+          files: filesFromPrepared(res.files),
+          wanted: res.wanted,
+          stripped: res.stripped,
+          source: res.source,
+          error: res.error || "",
+          missedUrls: res.missedUrls || 0,
+        };
+      }
+      if (res && !res.ok && res.error) empty.error = res.error;
+    } catch {
+      /* fall through to in-page fetch (fixture / SW missing) */
+    }
+  }
+  if (typeof LotLinkerPhotos !== "undefined" && LotLinkerPhotos.fetchPhotoFiles) {
+    return LotLinkerPhotos.fetchPhotoFiles(pack);
+  }
+  return empty;
+}
+
+async function uploadPhotoFiles(files) {
+  if (!files?.length) return { ok: false, via: "", count: 0, error: "No photo files" };
+  const found = await waitForPhotoInput();
+  if (!found?.el) {
+    return { ok: false, via: "", count: 0, error: "no photo picker on this page" };
+  }
+  scrollElIntoView(found.el);
+  let ok = assignFilesToInput(found.el, files);
+  if (!ok) {
+    const zone = findPhotoDropzone() || found.el.closest("div") || found.el;
+    dropFilesOn(zone, files);
+    ok = assignFilesToInput(found.el, files) || (found.el.files && found.el.files.length > 0);
+  }
+  const count = found.el.files?.length || (ok ? files.length : 0);
+  return {
+    ok: count > 0,
+    via: found.via || "input[type=file]",
+    count,
+    error: count ? "" : "Marketplace file input rejected files",
+  };
+}
+
+async function fillPhotos(pack) {
+  const photos = {
+    attempted: false,
+    count: 0,
+    wanted: 0,
+    stripped: 0,
+    source: "",
+    via: "",
+    error: "",
+  };
+  const hasSource =
+    (typeof LotLinkerPhotos !== "undefined" && LotLinkerPhotos.hasPhotoSource?.(pack)) ||
+    Boolean(pack?.photoUrls?.length || pack?.vdpUrl);
+  if (!hasSource) return { skipped: true, photos };
+
+  photos.attempted = true;
+  const loaded = await loadPhotoFiles(pack);
+  photos.wanted = loaded.wanted || 0;
+  photos.stripped = loaded.stripped || 0;
+  photos.source = loaded.source || "";
+  if (!loaded.ok || !loaded.files?.length) {
+    photos.error = loaded.error || "could not fetch photos";
+    return { skipped: false, ok: false, photos };
+  }
+  const placed = await uploadPhotoFiles(loaded.files);
+  photos.via = placed.via;
+  photos.count = placed.count;
+  if (!placed.ok) {
+    photos.error = placed.error || "photo picker missed";
+    return { skipped: false, ok: false, photos };
+  }
+  if (photos.wanted && photos.count < photos.wanted) {
+    photos.error = `uploaded ${photos.count} of ${photos.wanted}`;
+  }
+  return { skipped: false, ok: true, photos };
+}
+
 function listingFromPack(pack) {
   if (typeof LotLinkerListing !== "undefined") {
     if (LotLinkerListing.packToListing) return LotLinkerListing.packToListing(pack);
@@ -580,22 +825,46 @@ function fillPackOnce(pack) {
     modelLine,
     title: listing.title,
     descriptionHit: desc.via || "",
-    notes: "Model + description only. You hit Post.",
+    notes: "Model + description + photos. You hit Post.",
+  };
+}
+
+function mergePhotoResult(textResult, photoResult) {
+  const filled = [...(textResult.filled || [])];
+  const missed = [...(textResult.missed || [])];
+  const photos = photoResult?.photos || { attempted: false, count: 0 };
+  if (!photoResult?.skipped) {
+    if (photoResult?.ok && photos.count > 0) filled.push("photos");
+    else missed.push("photos");
+  }
+  return {
+    ...textResult,
+    filled: [...new Set(filled)],
+    missed: [...new Set(missed)],
+    photos,
+    notes: "Model + description + photos. You hit Post.",
   };
 }
 
 async function fillPack(pack) {
-  const first = fillPackOnce(pack);
-  if (!first.missed.includes("description")) return first;
-  revealDescriptionArea();
-  await delay(280);
-  return fillPackOnce(pack);
+  let textResult = fillPackOnce(pack);
+  if (textResult.missed.includes("description")) {
+    revealDescriptionArea();
+    await delay(280);
+    textResult = fillPackOnce(pack);
+  }
+  const photoResult = await fillPhotos(pack || {});
+  return mergePhotoResult(textResult, photoResult);
 }
 
 if (typeof globalThis !== "undefined") {
   globalThis.LotLinkerFill = {
     fillPack,
     fillPackOnce,
+    fillPhotos,
+    uploadPhotoFiles,
+    assignFilesToInput,
+    findPhotoFileInput,
     isMarketplacePath,
     findField,
     findDescriptionField,

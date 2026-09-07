@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Lot Linker photo fill fixture</title>
+  <style>
+    body { font: 14px/1.4 system-ui, sans-serif; max-width: 760px; margin: 24px auto; }
+    label { display: block; font-weight: 600; margin: 12px 0 4px; }
+    input, textarea { width: 100%; box-sizing: border-box; padding: 8px; font: inherit; }
+    .drop { border: 2px dashed #94a3b8; padding: 24px; text-align: center; margin: 12px 0; }
+    .hidden-file { position: absolute; width: 1px; height: 1px; opacity: 0; }
+    #status { color: #0369a1; min-height: 1.2em; }
+  </style>
+</head>
+<body>
+  <h1>Marketplace vehicle create — photos fixture</h1>
+  <p>Hidden Add photos input + visible dropzone. Post must never be clicked.</p>
+  <div class="drop" aria-label="Add photos">Add photos</div>
+  <input id="photos" class="hidden-file" type="file" multiple accept="image/*" aria-label="Add photos" />
+  <button id="post" type="button">Post</button>
+  <div id="status"></div>
+
+  <label>Year <input id="year" aria-label="Year" value="2012" /></label>
+  <label>Make <input id="make" aria-label="Make" value="Ford" /></label>
+  <label>Model <input id="model" /></label>
+  <label>Mileage <input id="mileage" aria-label="Mileage" value="87000" /></label>
+  <label>Description
+    <textarea id="description" aria-label="Description" rows="8"></textarea>
+  </label>
+
+  <script src="../listing-copy.js"></script>
+  <script src="../photos.js"></script>
+  <script src="../content-fb.js"></script>
+  <script>
+    let postClicks = 0;
+    document.getElementById("post").addEventListener("click", () => {
+      postClicks += 1;
+    });
+
+    function canvasBlob(draw) {
+      const c = document.createElement("canvas");
+      c.width = 120;
+      c.height = 100;
+      const ctx = c.getContext("2d");
+      draw(ctx, c);
+      return new Promise((resolve) => c.toBlob((b) => resolve(b), "image/jpeg", 0.92));
+    }
+
+    async function blobUrl(blob) {
+      return URL.createObjectURL(blob);
+    }
+
+    async function run() {
+      const vdpHtml = `<img src="https://vehicle-images.carscommerce.inc/a163-110010625/VIN/aaa.webp">
+<img src="https://vehicle-images.carscommerce.inc/a163-110010625/VIN/thumbnails/tiny.webp">
+{"photoUrls":["https://vehicle-images.carscommerce.inc/d439-110010625/VIN/bbb.webp"]}`;
+      const extracted = LotLinkerPhotos.extractPhotoUrls(vdpHtml);
+
+      const clean = await canvasBlob((ctx, c) => {
+        ctx.fillStyle = "#334155";
+        ctx.fillRect(0, 0, c.width, c.height);
+      });
+      const banner = await canvasBlob((ctx, c) => {
+        ctx.fillStyle = "#1e293b";
+        ctx.fillRect(0, 0, c.width, Math.floor(c.height * 0.82));
+        ctx.fillStyle = "#c41e3a";
+        ctx.fillRect(0, Math.floor(c.height * 0.82), c.width, c.height);
+      });
+      const stripped = await LotLinkerPhotos.stripBoucherBanner(banner);
+      const bmpIn = await createImageBitmap(banner);
+      const bmpOut = await createImageBitmap(stripped);
+
+      const urlA = await blobUrl(clean);
+      const urlB = await blobUrl(banner);
+      const pack = {
+        stock: "PU1392",
+        year: "2012",
+        make: "Ford",
+        model: "F-150",
+        trim: "SVT Raptor",
+        bodyStyle: "Crew Cab 4D",
+        mileage: "87000",
+        condition: "USED",
+        drivetrain: "4WD",
+        price: "26900",
+        rooftop: "Lake Country Nissan",
+        photoUrls: [urlA, urlB],
+        body: "USED 2012 Ford F-150 SVT Raptor · 4WD. Standouts: Heated Seats · Backup Camera · 4WD.",
+      };
+
+      const found = LotLinkerFill.findPhotoFileInput();
+      const result = await LotLinkerFill.fillPack(pack);
+      const input = document.getElementById("photos");
+      const model = document.getElementById("model").value;
+      const desc = document.getElementById("description").value;
+      const year = document.getElementById("year").value;
+      const make = document.getElementById("make").value;
+      const mileage = document.getElementById("mileage").value;
+
+      const report = {
+        extracted,
+        extractedOk: extracted.length === 2 && extracted.every((u) => !/thumbnails/.test(u)),
+        stripInH: bmpIn.height,
+        stripOutH: bmpOut.height,
+        stripOk: bmpOut.height < bmpIn.height && bmpOut.height >= 70,
+        foundVia: found?.via || "",
+        filled: result.filled,
+        missed: result.missed,
+        photoCount: input.files.length,
+        photosOk: input.files.length === 2 && result.filled.includes("photos"),
+        modelOk: model === "F-150 SVT Raptor | 4WD | $26,900 | Oconomowoc WI",
+        descOk: desc.includes("Wisconsin shoppers") && /\n/.test(desc),
+        protectedOk: year === "2012" && make === "Ford" && mileage === "87000",
+        postClicks,
+        neverPosted: postClicks === 0,
+      };
+      report.ok =
+        report.extractedOk &&
+        report.stripOk &&
+        report.photosOk &&
+        report.modelOk &&
+        report.descOk &&
+        report.protectedOk &&
+        report.neverPosted;
+
+      document.getElementById("status").textContent = report.ok
+        ? `PASS · ${input.files.length} photos · filled ${result.filled.join(", ")}`
+        : `FAIL · ${JSON.stringify(report)}`;
+      document.body.dataset.report = JSON.stringify(report);
+      document.body.dataset.reportReady = "1";
+      window.__lotLinkerPhotoReport = report;
+    }
+
+    run().catch((e) => {
+      const report = { ok: false, error: String(e) };
+      document.body.dataset.report = JSON.stringify(report);
+      document.body.dataset.reportReady = "1";
+      document.getElementById("status").textContent = `FAIL · ${e}`;
+    });
+  </script>
+</body>
+</html>

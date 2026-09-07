@@ -9,14 +9,21 @@ const content = readFileSync(new URL("../content-fb.js", import.meta.url), "utf8
 const popup = readFileSync(new URL("../popup.js", import.meta.url), "utf8");
 const popupHtml = readFileSync(new URL("../popup.html", import.meta.url), "utf8");
 const manifest = JSON.parse(readFileSync(new URL("../manifest.json", import.meta.url), "utf8"));
+const background = readFileSync(new URL("../background.js", import.meta.url), "utf8");
+const zipBuild = readFileSync(new URL("./build-zip.sh", import.meta.url), "utf8");
 
-assert.equal(manifest.version, "2.1.3");
-assert.deepEqual(manifest.content_scripts[0].js, ["listing-copy.js", "content-fb.js"]);
-assert.ok(!manifest.background, "service worker / photo download must be gone");
-assert.ok(!manifest.permissions.includes("downloads"));
+assert.equal(manifest.version, "2.2.0");
+assert.deepEqual(manifest.content_scripts[0].js, ["listing-copy.js", "photos.js", "content-fb.js"]);
+assert.equal(manifest.background.service_worker, "background.js");
+assert.ok(manifest.permissions.includes("downloads"), "fallback save uses chrome.downloads");
+assert.ok(manifest.host_permissions.some((h) => /vehicle-images\.carscommerce\.inc/.test(h)));
+assert.ok(manifest.host_permissions.some((h) => /facebook\.com/.test(h)));
+assert.match(background, /LOT_LINKER_PREPARE_PHOTOS/);
+assert.doesNotMatch(background, /chrome\.downloads/);
+assert.match(zipBuild, /lot-linker-fill/);
 
 assert.match(content, /LOT_LINKER_FILL/);
-assert.match(content, /Model \+ description only/);
+assert.match(content, /Model \+ description \+ photos/);
 assert.match(content, /\\bmodel\\b/);
 assert.match(content, /\\bdescription\\b/);
 assert.match(content, /_valueTracker/);
@@ -34,15 +41,22 @@ assert.match(content, /beforeinput/);
 assert.match(content, /descriptionHit/);
 assert.match(content, /findDescriptionField/);
 assert.match(content, /delay\(280\)|280\)/);
+assert.match(content, /findPhotoFileInput/);
+assert.match(content, /DataTransfer/);
+assert.match(content, /NEVER_CLICK_RE/);
+assert.match(content, /LOT_LINKER_PREPARE_PHOTOS/);
 assert.match(popup, /descriptionHit/);
+assert.match(popup, /res\.photos/);
 
 assert.doesNotMatch(popup, /downloadPhotos|copyTitle|copyBody|importPaste/);
 assert.doesNotMatch(popupHtml, /Download photos|Copy title|Import ALL-EASY-PASTE/);
-assert.match(popupHtml, /Fill model \+ description/);
+assert.match(popupHtml, />Fill</);
+assert.match(popupHtml, /Save photos \(fallback\)/);
 assert.match(popupHtml, /id="mPick"/);
 assert.match(popup, /LOT_LINKER_FILL/);
 assert.match(popup, /res\.missed/);
 assert.match(popup, /pickerLabel|packPickerLabel/);
+assert.match(popup, /savePhotos/);
 assert.doesNotMatch(popup, /storeShort/);
 
 const nissan = listing.fromPack(packs.find((p) => p.stock === "26NU0143"));
