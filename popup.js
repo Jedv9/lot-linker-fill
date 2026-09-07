@@ -96,11 +96,20 @@ function renderList() {
   if (selected && !filtered.some((p) => p.stock === selected.stock)) showPack(null);
 }
 
+function photoMetaText(pack) {
+  const n = pack?.photoUrls?.length || 0;
+  if (n) return `${n} cached photo URL${n === 1 ? "" : "s"} · VDP used if more exist`;
+  if (pack?.vdpUrl) return "Photos from VDP (banner stripped on Fill)";
+  return "No photo source";
+}
+
 function renderListing(pack) {
   const listing = listingFor(pack);
   const pick = $("mPick");
   if (pick) pick.textContent = packPickerLabel(pack);
   $("mTitle").textContent = listing.modelLine || listing.title;
+  const photos = $("mPhotos");
+  if (photos) photos.textContent = photoMetaText(pack);
   $("mBody").textContent = listing.body;
 }
 
@@ -126,6 +135,7 @@ function showPack(p) {
   researchStock = null;
   $("card").hidden = !p;
   $("fill").disabled = !p;
+  if ($("savePhotos")) $("savePhotos").disabled = !p;
   if (!p) return;
   renderListing(p);
   if (typeof LotLinkerListing !== "undefined" && LotLinkerListing.needsResearch?.(p)) {
@@ -164,6 +174,11 @@ $("fill").onclick = async () => {
     if (res?.ok) {
       const bits = [`Filled: ${res.filled?.join(", ") || "ok"}`];
       if (res.missed?.length) bits.push(`missed: ${res.missed.join(", ")}`);
+      if (res.photos?.count) {
+        bits.push(`${res.photos.count} photos`);
+        if (res.photos.stripped) bits.push("banner stripped");
+      }
+      if (res.photos?.error) bits.push(res.photos.error);
       if (res.descriptionHit && res.filled?.includes("description")) {
         bits.push(`via ${res.descriptionHit}`);
       }
@@ -212,5 +227,33 @@ $("refreshInventory").onclick = async () => {
     status(`Refresh failed: network error (${e?.message || e})`);
   }
 };
+
+$("savePhotos")?.addEventListener("click", async () => {
+  if (!selected) return;
+  status("Saving photos (fallback)…");
+  try {
+    const pack = await ensureResearched(selected);
+    const res = await chrome.runtime.sendMessage({ type: "LOT_LINKER_PREPARE_PHOTOS", pack });
+    if (!res?.ok || !res.files?.length) {
+      status(res?.error || "No photos to save");
+      return;
+    }
+    const stock = String(pack.stock || "unit").replace(/[^\w.-]/g, "_");
+    let n = 0;
+    for (const f of res.files) {
+      const url = `data:${f.type || "image/jpeg"};base64,${f.base64}`;
+      await chrome.downloads.download({
+        url,
+        filename: `LotLinkerPhotos/${stock}/${f.name}`,
+        conflictAction: "uniquify",
+        saveAs: false,
+      });
+      n += 1;
+    }
+    status(`Saved ${n} photos → Downloads/LotLinkerPhotos/${stock} (fallback — prefer Fill)`);
+  } catch (e) {
+    status(`Photo save failed: ${e?.message || e}`);
+  }
+});
 
 loadBundled();

@@ -1,4 +1,5 @@
-// Lot Linker Fill — Model + description only. Never Post. Never Year/Make/Mileage.
+// Lot Linker Fill — Vehicle type (Car/Truck) first, then Year/Make/Price/Mileage/body/colors/fuel + Model + description + photos.
+// Never VIN. Never clean-title checkbox. Never vehicle condition. Never Post.
 function isMarketplacePath() {
   return /marketplace/i.test(location.pathname + location.href);
 }
@@ -46,6 +47,7 @@ const DESC_ATTR_SELECTORS = [
 
 function setNativeValue(el, value) {
   if (!el || value == null) return false;
+  if (isOffLimitsControl(el)) return false;
   const next = String(value);
   const proto =
     el instanceof HTMLTextAreaElement
@@ -149,8 +151,10 @@ function resolveEditable(el) {
 }
 
 function fillMultiline(el, value) {
+  if (isOffLimitsControl(el)) return false;
   const text = String(value);
   const target = resolveEditable(el) || el;
+  if (isOffLimitsControl(target)) return false;
   scrollElIntoView(target);
   try {
     target.focus();
@@ -300,12 +304,197 @@ function labelText(el) {
 }
 
 function isProtectedLabel(lab) {
+  // Description must never land on these spec controls.
   return (
     /\byear\b/.test(lab) ||
     /\bmake\b/.test(lab) ||
     /\bmileage\b/.test(lab) ||
-    /\bodometer\b/.test(lab)
+    /\bodometer\b/.test(lab) ||
+    /\bvin\b/.test(lab) ||
+    /vehicle identification/.test(lab) ||
+    /body style/.test(lab) ||
+    /\bexterior\b/.test(lab) ||
+    /\binterior\b/.test(lab) ||
+    /\bfuel\b/.test(lab) ||
+    /clean title/.test(lab) ||
+    /title status/.test(lab) ||
+    /vehicle condition/.test(lab) ||
+    /vehicle type/.test(lab)
   );
+}
+
+function isVinLabel(lab) {
+  const t = String(lab || "").toLowerCase();
+  return /\bvin\b/.test(t) || /vehicle identification/.test(t);
+}
+
+/** Hard stop: never write the Marketplace VIN field. */
+function isVinControl(el) {
+  if (!el) return false;
+  if (isVinLabel(ownLabel(el))) return true;
+  const bits = [el.name, el.id, el.getAttribute?.("autocomplete"), el.getAttribute?.("aria-label")]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return /\bvin\b/.test(bits) || /vehicle identification/.test(bits);
+}
+
+function isOffLimitsLabel(lab) {
+  const t = String(lab || "").toLowerCase();
+  return (
+    isVinLabel(t) ||
+    /clean title/.test(t) ||
+    /this vehicle has a clean title/.test(t) ||
+    /title status/.test(t) ||
+    /vehicle condition/.test(t) ||
+    /^(new or used|used or new|condition)$/.test(t)
+  );
+}
+
+function isOffLimitsControl(el) {
+  if (!el) return false;
+  if (isVinControl(el)) return true;
+  return isOffLimitsLabel(ownLabel(el));
+}
+
+function ownLabel(el) {
+  if (!el) return "";
+  const bits = [
+    el.getAttribute("aria-label"),
+    el.getAttribute("aria-placeholder"),
+    el.getAttribute("data-placeholder"),
+    el.placeholder,
+    el.name,
+    el.id && el.id.length < 24 ? el.id : "",
+  ];
+  const labelledBy = el.getAttribute("aria-labelledby");
+  if (labelledBy) {
+    for (const id of labelledBy.split(/\s+/)) {
+      const n = document.getElementById(id);
+      if (n) bits.push(n.textContent);
+    }
+  }
+  if (el.id) {
+    try {
+      const forLab = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+      if (forLab) bits.push(forLab.textContent);
+    } catch {
+      /* ignore */
+    }
+  }
+  const closestLabel = el.closest("label");
+  if (closestLabel) {
+    const t = shortText(closestLabel.textContent);
+    if (t && t.length < 48) bits.push(t);
+  }
+  const prev = el.previousElementSibling;
+  if (prev && !isControl(prev) && !prev.querySelector?.("input, textarea, [contenteditable], [role=textbox], [role=combobox]")) {
+    const t = shortText(prev.textContent);
+    if (t && t.length < 40) bits.push(t);
+  }
+  const parent = el.parentElement;
+  if (parent) {
+    const pLab = parent.getAttribute("aria-label");
+    if (pLab) bits.push(pLab);
+    const kid = [...parent.children].find((n) => {
+      if (n === el || isControl(n)) return false;
+      const t = shortText(n.textContent);
+      return t && t.length < 32 && !n.querySelector("input, textarea, [role=textbox], [role=combobox]");
+    });
+    if (kid) bits.push(kid.textContent);
+  }
+  return bits.filter(Boolean).map(shortText).filter(Boolean).join(" ").toLowerCase();
+}
+
+function isBlankPackValue(v) {
+  const s = String(v == null ? "" : v).replace(/\s+/g, " ").trim();
+  return !s || /^(\[need\]|n\/?a|unknown|tbd|none|-)$/i.test(s);
+}
+
+function priceDigits(pack) {
+  const n = Number(String(pack?.price ?? "").replace(/[^\d.]/g, ""));
+  if (!Number.isFinite(n) || n <= 0) return "";
+  return String(Math.round(n));
+}
+
+function mileageDigits(pack) {
+  const raw =
+    pack?.odometerMiles != null && pack.odometerMiles !== "" ? pack.odometerMiles : pack?.mileage;
+  if (raw == null || raw === "") return "";
+  const n = Number(String(raw).replace(/[^\d]/g, ""));
+  if (!Number.isFinite(n) || n < 0) return "";
+  return String(Math.round(n));
+}
+
+function bodyStyleCandidates(pack) {
+  if (isBlankPackValue(pack?.bodyStyle)) return [];
+  const t = String(pack.bodyStyle).toLowerCase();
+  if (/sedan/.test(t)) return ["Sedan"];
+  if (/suv|sport utility|crossover/.test(t)) return ["SUV"];
+  if (/hatch/.test(t)) return ["Hatchback"];
+  if (/minivan/.test(t)) return ["Minivan"];
+  if (/\bvan\b/.test(t)) return ["Minivan", "Van"];
+  if (/coupe/.test(t)) return ["Coupe"];
+  if (/convertible/.test(t)) return ["Convertible"];
+  if (/wagon/.test(t)) return ["Wagon"];
+  if (/crew|cab|supercrew|pickup|truck/.test(t)) return ["Truck"];
+  const cleaned = String(pack.bodyStyle).replace(/\s+\dD$/i, "").trim();
+  return cleaned ? [cleaned] : [];
+}
+
+function colorCandidates(raw) {
+  if (isBlankPackValue(raw)) return [];
+  const s = String(raw).toLowerCase();
+  const palette = [
+    ["charcoal", ["Charcoal", "Grey", "Gray", "Black"]],
+    ["burgundy", ["Burgundy", "Red"]],
+    ["maroon", ["Burgundy", "Red"]],
+    ["ivory", ["Ivory", "White"]],
+    ["cream", ["Cream", "Beige", "White"]],
+    ["beige", ["Beige", "Tan"]],
+    ["bronze", ["Bronze", "Brown"]],
+    ["silver", ["Silver"]],
+    ["white", ["White"]],
+    ["black", ["Black"]],
+    ["navy", ["Blue"]],
+    ["blue", ["Blue"]],
+    ["green", ["Green"]],
+    ["brown", ["Brown"]],
+    ["gold", ["Gold"]],
+    ["yellow", ["Yellow"]],
+    ["orange", ["Orange"]],
+    ["purple", ["Purple"]],
+    ["pink", ["Pink"]],
+    ["tan", ["Tan", "Beige"]],
+    ["gray", ["Grey", "Gray"]],
+    ["grey", ["Grey", "Gray"]],
+    ["red", ["Red"]],
+  ];
+  for (const [word, aliases] of palette) {
+    if (new RegExp(`\\b${word}\\b`).test(s)) return aliases;
+  }
+  return [];
+}
+
+function fuelCandidates(pack) {
+  if (isBlankPackValue(pack?.fuel)) return [];
+  const t = String(pack.fuel).toLowerCase();
+  if (/plug-?in|phev/.test(t)) return ["Plug-in hybrid", "Plugin hybrid", "Hybrid"];
+  if (/hybrid/.test(t)) return ["Hybrid"];
+  if (/electric|\bev\b/.test(t)) return ["Electric"];
+  if (/diesel/.test(t)) return ["Diesel"];
+  if (/flex|e85/.test(t)) return ["Flex", "Flex fuel"];
+  if (/hydrogen|fuel cell/.test(t)) return ["Hydrogen"];
+  if (/gas/.test(t)) return ["Gasoline"];
+  return [String(pack.fuel).trim()];
+}
+
+async function fillChoiceAny(matchers, values, exclude = []) {
+  const list = [...new Set((values || []).map((v) => String(v || "").trim()).filter((v) => !isBlankPackValue(v)))];
+  for (const v of list) {
+    if (await fillChoice(matchers, v, exclude)) return true;
+  }
+  return false;
 }
 
 function allInputs() {
@@ -359,7 +548,7 @@ function controlInside(root) {
 }
 
 function usableDescription(el) {
-  if (!el) return false;
+  if (!el || isOffLimitsControl(el)) return false;
   const lab = labelText(el);
   if (isProtectedLabel(lab)) return false;
   if (DESC_EXCLUDE.some((x) => x.test(lab))) return false;
@@ -369,32 +558,180 @@ function usableDescription(el) {
 function findField(matchers, { exclude = [], prefer } = {}) {
   const hits = [];
   for (const el of allInputs()) {
-    const lab = labelText(el);
-    if (!lab) continue;
-    if (isProtectedLabel(lab)) continue;
-    if (exclude.some((x) => x.test(lab))) continue;
-    if (!matchers.some((m) => m.test(lab))) continue;
-    hits.push({ el, lab });
+    if (isOffLimitsControl(el)) continue;
+    const own = ownLabel(el);
+    if (isVinLabel(own) || isOffLimitsLabel(own)) continue;
+    if (exclude.some((x) => x.test(own))) continue;
+    if (own && matchers.some((m) => m.test(own))) {
+      hits.push({ el, lab: own, ownHit: true });
+      continue;
+    }
+    const deep = labelText(el);
+    if (isVinLabel(deep)) continue;
+    if (exclude.some((x) => x.test(deep))) continue;
+    if (deep && matchers.some((m) => m.test(deep))) {
+      hits.push({ el, lab: deep, ownHit: false });
+    }
   }
   if (!hits.length) return null;
+  const pool = hits.some((h) => h.ownHit) ? hits.filter((h) => h.ownHit) : hits;
   if (prefer === "multiline") {
-    const multi = hits.find((h) => isMultilineEl(h.el));
+    const multi = pool.find((h) => isMultilineEl(h.el));
     if (multi) return multi.el;
   }
   if (prefer === "single") {
-    const single = hits.find((h) => h.el instanceof HTMLInputElement && !h.el.isContentEditable);
+    const single = pool.find((h) => h.el instanceof HTMLInputElement && !h.el.isContentEditable);
     if (single) return single.el;
   }
-  hits.sort((a, b) => a.lab.length - b.lab.length);
-  return hits[0].el;
+  pool.sort((a, b) => a.lab.length - b.lab.length);
+  return pool[0].el;
 }
 
 function fillText(matchers, value, exclude, prefer) {
   if (value == null || value === "") return false;
   const el = findField(matchers, { exclude, prefer });
-  if (!el) return false;
-  if (isProtectedLabel(labelText(el))) return false;
+  if (!el || isOffLimitsControl(el)) return false;
   return fillMultiline(el, value);
+}
+
+function optionText(el) {
+  return shortText(el?.textContent || el?.getAttribute?.("aria-label") || "");
+}
+
+function findChoiceControl(matchers, exclude = []) {
+  const nodes = [
+    ...document.querySelectorAll(
+      '[role="combobox"], [aria-haspopup="listbox"], [aria-haspopup="true"], select, input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=file]):not([type=submit]):not([type=button])'
+    ),
+  ];
+  const hits = [];
+  for (const el of nodes) {
+    const own = ownLabel(el);
+    const lab = own || labelText(el);
+    if (!lab) continue;
+    if (isOffLimitsControl(el) || isVinLabel(own) || isVinLabel(lab) || isOffLimitsLabel(own) || isOffLimitsLabel(lab)) continue;
+    if (exclude.some((x) => x.test(own) || x.test(lab))) continue;
+    const ownHit = own && matchers.some((m) => m.test(own));
+    const deepHit = matchers.some((m) => m.test(lab) || m.test(labelText(el)));
+    if (!ownHit && !deepHit) continue;
+    hits.push({ el, lab: own || lab, ownHit });
+  }
+  if (!hits.length) {
+    for (const el of document.querySelectorAll("[aria-label], [role=button]")) {
+      if (isUnsafeClickTarget(el)) continue;
+      const own = ownLabel(el);
+      const lab = own || labelText(el);
+      if (!lab) continue;
+      if (isOffLimitsControl(el) || isVinLabel(own) || isVinLabel(lab) || isOffLimitsLabel(own) || isOffLimitsLabel(lab)) continue;
+      if (exclude.some((x) => x.test(own) || x.test(lab))) continue;
+      if (!matchers.some((m) => m.test(own) || m.test(lab))) continue;
+      if (el.closest("input, textarea, [contenteditable]")) continue;
+      hits.push({ el, lab, ownHit: Boolean(own && matchers.some((m) => m.test(own))) });
+    }
+  }
+  if (!hits.length) return null;
+  const pool = hits.some((h) => h.ownHit) ? hits.filter((h) => h.ownHit) : hits;
+  pool.sort((a, b) => a.lab.length - b.lab.length);
+  return pool[0].el;
+}
+
+function fillNativeSelect(el, value) {
+  const want = String(value).toLowerCase();
+  const opt = [...el.options].find((o) => {
+    const t = shortText(o.textContent).toLowerCase();
+    return t === want || o.value === String(value) || t.startsWith(want);
+  });
+  if (!opt) return false;
+  el.value = opt.value;
+  try {
+    el._valueTracker?.setValue("");
+  } catch {
+    /* ignore */
+  }
+  el.dispatchEvent(new Event("input", { bubbles: true }));
+  el.dispatchEvent(new Event("change", { bubbles: true }));
+  return true;
+}
+
+function pickOpenOption(want) {
+  const w = shortText(want).toLowerCase();
+  if (!w) return false;
+  const opts = [
+    ...document.querySelectorAll('[role="option"], [role="menuitem"], [role="menuitemradio"], li[role="option"]'),
+  ].filter((o) => !isUnsafeClickTarget(o) && isDisplayed(o));
+  const scored = opts
+    .map((el) => {
+      const t = optionText(el).toLowerCase();
+      let score = 0;
+      if (t === w) score = 3;
+      else if (t.startsWith(w)) score = 2;
+      else if (t.includes(w)) score = 1;
+      return { el, score };
+    })
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score);
+  const hit = scored[0]?.el;
+  if (!hit) return false;
+  try {
+    hit.click();
+  } catch {
+    return false;
+  }
+  return true;
+}
+
+function choiceLooksSet(el, value) {
+  if (!el) return false;
+  if (el instanceof HTMLSelectElement) {
+    const t = shortText(el.selectedOptions?.[0]?.textContent || el.value);
+    return t.toLowerCase() === String(value).toLowerCase() || t.toLowerCase().startsWith(String(value).toLowerCase());
+  }
+  return looksFilled(el, value);
+}
+
+async function fillChoice(matchers, value, exclude = []) {
+  if (isBlankPackValue(value)) return false;
+  const el = findChoiceControl(matchers, exclude) || findField(matchers, { exclude });
+  if (!el || isUnsafeClickTarget(el) || isOffLimitsControl(el) || isVinLabel(ownLabel(el))) return false;
+  if (el instanceof HTMLSelectElement) return fillNativeSelect(el, value);
+  if ((el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) && fillMultiline(el, value) && looksFilled(el, value)) {
+    return true;
+  }
+  scrollElIntoView(el);
+  try {
+    el.focus();
+  } catch {
+    /* ignore */
+  }
+  try {
+    el.click();
+  } catch {
+    /* ignore */
+  }
+  await delay(180);
+  if (pickOpenOption(value)) {
+    await delay(80);
+    return choiceLooksSet(el, value) || true;
+  }
+  const active = document.activeElement;
+  if (active && (active instanceof HTMLInputElement || active.getAttribute("role") === "combobox")) {
+    if (active instanceof HTMLInputElement) fillMultiline(active, value);
+    else {
+      try {
+        active.textContent = String(value);
+        active.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, data: String(value) }));
+      } catch {
+        /* ignore */
+      }
+    }
+    await delay(200);
+    if (pickOpenOption(value)) {
+      await delay(80);
+      return true;
+    }
+  }
+  if (el instanceof HTMLInputElement) return fillMultiline(el, value) && looksFilled(el, value);
+  return choiceLooksSet(el, value);
 }
 
 function controlAfterLabel(node) {
@@ -519,6 +856,252 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+const PHOTO_LABEL_RE = /\b(photo|photos|picture|pictures|image|images|gallery|media)\b/i;
+const PHOTO_EXCLUDE_RE = /\b(profile|avatar|cover photo|comment|messenger|story)\b/i;
+const PHOTO_REVEAL_RE = /^(add photos?|upload photos?|add pictures?|choose (files?|photos?)|photos|add media)$/i;
+const NEVER_CLICK_RE = /^(post|publish|next|submit|share|create listing|publish listing)$/i;
+
+function photoContext(el) {
+  if (!el) return "";
+  const bits = [
+    el.getAttribute("aria-label"),
+    el.getAttribute("title"),
+    el.getAttribute("name"),
+    el.getAttribute("accept"),
+    el.getAttribute("id"),
+  ];
+  let node = el;
+  for (let d = 0; d < 6 && node; d++) {
+    bits.push(node.getAttribute?.("aria-label"));
+    bits.push(node.getAttribute?.("aria-placeholder"));
+    const labeledBy = node.getAttribute?.("aria-labelledby");
+    if (labeledBy) {
+      for (const id of labeledBy.split(/\s+/)) {
+        const n = document.getElementById(id);
+        if (n) bits.push(n.textContent);
+      }
+    }
+    node = node.parentElement;
+  }
+  return bits.filter(Boolean).map(shortText).join(" ").toLowerCase();
+}
+
+function acceptsImages(input) {
+  const accept = (input.getAttribute("accept") || "").toLowerCase();
+  return !accept || accept.includes("image") || accept.includes("*/*") || accept.includes("*");
+}
+
+function findPhotoFileInput() {
+  const inputs = [...document.querySelectorAll('input[type="file"]')];
+  const scored = [];
+  for (const el of inputs) {
+    if (el.disabled) continue;
+    if (!acceptsImages(el)) continue;
+    const lab = photoContext(el);
+    if (PHOTO_EXCLUDE_RE.test(lab) && !PHOTO_LABEL_RE.test(lab)) continue;
+    let score = 0;
+    if (el.multiple) score += 3;
+    if (/image/.test(el.getAttribute("accept") || "")) score += 2;
+    if (PHOTO_LABEL_RE.test(lab)) score += 6;
+    if (el.closest("[role=dialog], [role=main], form")) score += 1;
+    scored.push({ el, score, lab, via: el.multiple ? 'input[type=file][multiple]' : 'input[type=file]' });
+  }
+  scored.sort((a, b) => b.score - a.score);
+  return scored[0] || null;
+}
+
+function findPhotoDropzone() {
+  const nodes = [
+    ...document.querySelectorAll("[aria-label], [role=button], button, [tabindex], div, span"),
+  ];
+  for (const n of nodes) {
+    const lab = shortText(n.getAttribute("aria-label") || n.getAttribute("title") || "");
+    if (PHOTO_REVEAL_RE.test(lab) && !NEVER_CLICK_RE.test(lab)) return n;
+    const t = shortText(n.textContent);
+    if (t && t.length < 28 && PHOTO_REVEAL_RE.test(t) && !NEVER_CLICK_RE.test(t)) {
+      if (n.querySelector?.("input, textarea, [contenteditable]")) continue;
+      return n;
+    }
+  }
+  return null;
+}
+
+function isUnsafeClickTarget(el) {
+  if (!el) return true;
+  const t = shortText(el.getAttribute("aria-label") || el.textContent || "");
+  if (NEVER_CLICK_RE.test(t) || /\b(post|publish) listing\b/i.test(t)) return true;
+  return isOffLimitsLabel(ownLabel(el)) || isOffLimitsLabel(t);
+}
+
+function revealPhotoPicker() {
+  try {
+    window.scrollTo(0, 0);
+  } catch {
+    /* ignore */
+  }
+  const scroller = document.querySelector("[role=main], [role=dialog]") || document.scrollingElement;
+  if (scroller) {
+    try {
+      scroller.scrollTop = 0;
+    } catch {
+      /* ignore */
+    }
+  }
+  const zone = findPhotoDropzone();
+  if (zone && !isUnsafeClickTarget(zone)) {
+    scrollElIntoView(zone);
+    try {
+      zone.click();
+    } catch {
+      /* ignore */
+    }
+    return zone;
+  }
+  return null;
+}
+
+function assignFilesToInput(input, files) {
+  if (!input || !files?.length) return false;
+  const dt = new DataTransfer();
+  for (const f of files) dt.items.add(f);
+  input.files = dt.files;
+  try {
+    input.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
+  } catch {
+    /* ignore */
+  }
+  input.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
+  return input.files && input.files.length === files.length;
+}
+
+function dropFilesOn(target, files) {
+  if (!target || !files?.length) return false;
+  const dt = new DataTransfer();
+  for (const f of files) dt.items.add(f);
+  for (const type of ["dragenter", "dragover", "drop"]) {
+    try {
+      target.dispatchEvent(
+        new DragEvent(type, { bubbles: true, cancelable: true, composed: true, dataTransfer: dt })
+      );
+    } catch {
+      /* older engines */
+    }
+  }
+  return true;
+}
+
+async function waitForPhotoInput({ tries = 16, delayMs = 280 } = {}) {
+  let last = findPhotoFileInput();
+  if (last) return last;
+  revealPhotoPicker();
+  for (let i = 0; i < tries; i++) {
+    await delay(delayMs);
+    last = findPhotoFileInput();
+    if (last) return last;
+    if (i === 3 || i === 8) revealPhotoPicker();
+  }
+  return last;
+}
+
+function filesFromPrepared(payloads) {
+  if (typeof LotLinkerPhotos !== "undefined" && LotLinkerPhotos.filesFromTransfer) {
+    return LotLinkerPhotos.filesFromTransfer(payloads);
+  }
+  return [];
+}
+
+async function loadPhotoFiles(pack) {
+  const empty = { ok: false, files: [], wanted: 0, stripped: 0, source: "", error: "No photos" };
+  if (typeof chrome !== "undefined" && chrome.runtime?.id && chrome.runtime.sendMessage) {
+    try {
+      const res = await new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({ type: "LOT_LINKER_PREPARE_PHOTOS", pack }, (r) => {
+          const err = chrome.runtime.lastError;
+          if (err) reject(new Error(err.message || String(err)));
+          else resolve(r);
+        });
+      });
+      if (res?.ok && res.files?.length) {
+        return {
+          ok: true,
+          files: filesFromPrepared(res.files),
+          wanted: res.wanted,
+          stripped: res.stripped,
+          source: res.source,
+          error: res.error || "",
+          missedUrls: res.missedUrls || 0,
+        };
+      }
+      if (res && !res.ok && res.error) empty.error = res.error;
+    } catch {
+      /* fall through to in-page fetch (fixture / SW missing) */
+    }
+  }
+  if (typeof LotLinkerPhotos !== "undefined" && LotLinkerPhotos.fetchPhotoFiles) {
+    return LotLinkerPhotos.fetchPhotoFiles(pack);
+  }
+  return empty;
+}
+
+async function uploadPhotoFiles(files) {
+  if (!files?.length) return { ok: false, via: "", count: 0, error: "No photo files" };
+  const found = await waitForPhotoInput();
+  if (!found?.el) {
+    return { ok: false, via: "", count: 0, error: "no photo picker on this page" };
+  }
+  scrollElIntoView(found.el);
+  let ok = assignFilesToInput(found.el, files);
+  if (!ok) {
+    const zone = findPhotoDropzone() || found.el.closest("div") || found.el;
+    dropFilesOn(zone, files);
+    ok = assignFilesToInput(found.el, files) || (found.el.files && found.el.files.length > 0);
+  }
+  const count = found.el.files?.length || (ok ? files.length : 0);
+  return {
+    ok: count > 0,
+    via: found.via || "input[type=file]",
+    count,
+    error: count ? "" : "Marketplace file input rejected files",
+  };
+}
+
+async function fillPhotos(pack) {
+  const photos = {
+    attempted: false,
+    count: 0,
+    wanted: 0,
+    stripped: 0,
+    source: "",
+    via: "",
+    error: "",
+  };
+  const hasSource =
+    (typeof LotLinkerPhotos !== "undefined" && LotLinkerPhotos.hasPhotoSource?.(pack)) ||
+    Boolean(pack?.photoUrls?.length || pack?.vdpUrl);
+  if (!hasSource) return { skipped: true, photos };
+
+  photos.attempted = true;
+  const loaded = await loadPhotoFiles(pack);
+  photos.wanted = loaded.wanted || 0;
+  photos.stripped = loaded.stripped || 0;
+  photos.source = loaded.source || "";
+  if (!loaded.ok || !loaded.files?.length) {
+    photos.error = loaded.error || "could not fetch photos";
+    return { skipped: false, ok: false, photos };
+  }
+  const placed = await uploadPhotoFiles(loaded.files);
+  photos.via = placed.via;
+  photos.count = placed.count;
+  if (!placed.ok) {
+    photos.error = placed.error || "photo picker missed";
+    return { skipped: false, ok: false, photos };
+  }
+  if (photos.wanted && photos.count < photos.wanted) {
+    photos.error = `uploaded ${photos.count} of ${photos.wanted}`;
+  }
+  return { skipped: false, ok: true, photos };
+}
+
 function listingFromPack(pack) {
   if (typeof LotLinkerListing !== "undefined") {
     if (LotLinkerListing.packToListing) return LotLinkerListing.packToListing(pack);
@@ -535,39 +1118,161 @@ function fillDescription(value) {
   if (value == null || value === "") return { ok: false, via: "" };
   const found = findDescriptionField();
   if (!found?.el) return { ok: false, via: "" };
-  if (isProtectedLabel(labelText(found.el))) return { ok: false, via: "" };
+  if (isOffLimitsControl(found.el) || isProtectedLabel(labelText(found.el))) return { ok: false, via: "" };
   scrollElIntoView(found.el);
   const ok = fillMultiline(found.el, value);
   return { ok, via: ok ? found.via : "" };
 }
 
-function fillPackOnce(pack) {
-  const listing = listingFromPack(pack || {});
+const MODEL_EXCLUDE = [
+  /description/,
+  /\byear\b/,
+  /\bmake\b/,
+  /\bmileage\b/,
+  /\bodometer\b/,
+  /\bvin\b/,
+  /vehicle identification/,
+  /more details/,
+  /clean title/,
+  /title status/,
+  /listing title/,
+  /item title/,
+  /\bprice\b/,
+  /\btrim\b/,
+];
+
+const CHOICE_EXCLUDE = [
+  /description/,
+  /tell buyers/,
+  /what makes/,
+  /more details/,
+  /listing title/,
+  /item title/,
+  /\bvin\b/,
+  /vehicle identification/,
+  /clean title/,
+  /title status/,
+  /vehicle condition/,
+  /^condition$/,
+];
+
+function markIfPresent(mark, key, packHas, ok) {
+  if (!packHas) return;
+  mark(key, ok);
+}
+
+async function fillPackOnce(pack) {
+  // FIRST Vehicle type = Car/Truck, then Year, Make, Price, Mileage, Body style,
+  // Exterior color, Interior color, Fuel, Model title line, Description.
+  // Never VIN. Never clean-title checkbox. Never vehicle condition.
+  const p = pack || {};
+  const listing = listingFromPack(p);
   const filled = [];
   const missed = [];
   const mark = (key, ok) => (ok ? filled : missed).push(key);
   const modelLine = listing.modelLine || "";
+  const specExclude = [...CHOICE_EXCLUDE, /\byear\b/, /\bmake\b/, /\bmodel\b/, /\bprice\b/, /\bmileage\b/, /vehicle type/];
+
+  mark(
+    "vehicleType",
+    await fillChoiceAny(
+      [/^vehicle type$/, /\bvehicle type\b/],
+      ["Car/Truck", "Car / Truck"],
+      [...CHOICE_EXCLUDE, /\byear\b/, /\bmake\b/, /\bmodel\b/, /\bvin\b/, /body style/, /\bprice\b/]
+    )
+  );
+  await delay(400);
+
+  const yearVal = isBlankPackValue(p.year) ? "" : String(p.year).trim();
+  markIfPresent(
+    mark,
+    "year",
+    Boolean(yearVal),
+    await fillChoice([/^year$/, /\byear\b/], yearVal, [...CHOICE_EXCLUDE, /\bmake\b/, /\bmodel\b/])
+  );
+  if (yearVal) await delay(200);
+
+  const makeVal = isBlankPackValue(p.make) ? "" : String(p.make).trim();
+  markIfPresent(
+    mark,
+    "make",
+    Boolean(makeVal),
+    await fillChoice([/^make$/, /\bmake\b/, /manufacturer/], makeVal, [...CHOICE_EXCLUDE, /\byear\b/, /\bmodel\b/])
+  );
+  if (makeVal) await delay(150);
 
   mark(
     "model",
+    fillText([/^model$/, /\bvehicle model\b/, /\bmodel\b/], modelLine, MODEL_EXCLUDE, "single")
+  );
+
+  const price = priceDigits(p);
+  markIfPresent(
+    mark,
+    "price",
+    Boolean(price),
     fillText(
-      [/^model$/, /\bvehicle model\b/, /\bmodel\b/],
-      modelLine,
-      [
-        /description/,
-        /\byear\b/,
-        /\bmake\b/,
-        /\bmileage\b/,
-        /\bodometer\b/,
-        /\bvin\b/,
-        /vehicle identification/,
-        /more details/,
-        /clean title/,
-        /title status/,
-        /listing title/,
-        /item title/,
-      ],
+      [/^price$/, /\bprice\b/, /asking price/, /listing price/],
+      price,
+      [/mileage/, /odometer/, /description/, /\bmodel\b/, /year/, /make/, /\bvin\b/],
       "single"
+    )
+  );
+
+  const miles = mileageDigits(p);
+  markIfPresent(
+    mark,
+    "mileage",
+    Boolean(miles),
+    fillText(
+      [/^mileage$/, /\bmileage\b/, /\bodometer\b/, /\bmiles\b/],
+      miles,
+      [/price/, /description/, /\bmodel\b/, /year/, /make/, /\bvin\b/],
+      "single"
+    )
+  );
+
+  const bodyVals = bodyStyleCandidates(p);
+  markIfPresent(
+    mark,
+    "bodyStyle",
+    bodyVals.length > 0,
+    await fillChoiceAny([/^body style$/, /\bbody style\b/, /^body$/], bodyVals, [...specExclude, /\bexterior\b/, /\binterior\b/, /\bfuel\b/])
+  );
+
+  const extVals = colorCandidates(p.exterior);
+  markIfPresent(
+    mark,
+    "exterior",
+    extVals.length > 0,
+    await fillChoiceAny(
+      [/^exterior$/, /\bexterior colou?r\b/, /\bexterior\b/, /outside colou?r/],
+      extVals,
+      [...specExclude, /\binterior\b/, /\bfuel\b/, /body style/]
+    )
+  );
+
+  const intVals = colorCandidates(p.interior);
+  markIfPresent(
+    mark,
+    "interior",
+    intVals.length > 0,
+    await fillChoiceAny(
+      [/^interior$/, /\binterior colou?r\b/, /\binterior\b/, /inside colou?r/],
+      intVals,
+      [...specExclude, /\bexterior\b/, /\bfuel\b/, /body style/]
+    )
+  );
+
+  const fuelVals = fuelCandidates(p);
+  markIfPresent(
+    mark,
+    "fuel",
+    fuelVals.length > 0,
+    await fillChoiceAny(
+      [/^fuel type$/, /\bfuel type\b/, /^fuel$/, /\bfuel\b/],
+      fuelVals,
+      [...specExclude, /\bexterior\b/, /\binterior\b/, /body style/]
     )
   );
 
@@ -580,22 +1285,59 @@ function fillPackOnce(pack) {
     modelLine,
     title: listing.title,
     descriptionHit: desc.via || "",
-    notes: "Model + description only. You hit Post.",
+    notes: "Vehicle type first, then Year/Make/Price/Mileage/body/colors/fuel + Model + description + photos. Never VIN. You hit Post.",
+  };
+}
+
+function mergePhotoResult(textResult, photoResult) {
+  const filled = [...(textResult.filled || [])];
+  const missed = [...(textResult.missed || [])];
+  const photos = photoResult?.photos || { attempted: false, count: 0 };
+  if (!photoResult?.skipped) {
+    if (photoResult?.ok && photos.count > 0) filled.push("photos");
+    else missed.push("photos");
+  }
+  return {
+    ...textResult,
+    filled: [...new Set(filled)],
+    missed: [...new Set(missed)],
+    photos,
+    notes: "Vehicle type first, then Year/Make/Price/Mileage/body/colors/fuel + Model + description + photos. Never VIN. You hit Post.",
   };
 }
 
 async function fillPack(pack) {
-  const first = fillPackOnce(pack);
-  if (!first.missed.includes("description")) return first;
-  revealDescriptionArea();
-  await delay(280);
-  return fillPackOnce(pack);
+  let textResult = await fillPackOnce(pack);
+  const retryKeys = [
+    "vehicleType",
+    "description",
+    "year",
+    "make",
+    "price",
+    "model",
+    "mileage",
+    "bodyStyle",
+    "exterior",
+    "interior",
+    "fuel",
+  ].filter((k) => textResult.missed.includes(k));
+  if (retryKeys.length) {
+    revealDescriptionArea();
+    await delay(280);
+    textResult = await fillPackOnce(pack);
+  }
+  const photoResult = await fillPhotos(pack || {});
+  return mergePhotoResult(textResult, photoResult);
 }
 
 if (typeof globalThis !== "undefined") {
   globalThis.LotLinkerFill = {
     fillPack,
     fillPackOnce,
+    fillPhotos,
+    uploadPhotoFiles,
+    assignFilesToInput,
+    findPhotoFileInput,
     isMarketplacePath,
     findField,
     findDescriptionField,

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Lot Linker Fill",
-  "version": "2.1.3",
-  "description": "Fill Marketplace vehicle Model + description from stock. Researches VDP when equipment is thin. You hit Post.",
+  "version": "2.2.4",
+  "description": "Fill Marketplace Vehicle type (Car/Truck) first, then Year, Make, Price, Mileage, body, colors, fuel, Model, description, photos. Never VIN. You hit Post.",
   "action": {
     "default_popup": "popup.html",
     "default_title": "Lot Linker Fill",
@@ -19,7 +19,8 @@
   },
   "permissions": [
     "activeTab",
-    "storage"
+    "storage",
+    "downloads"
   ],
   "host_permissions": [
     "https://facebook.com/*",
@@ -28,8 +29,17 @@
     "https://www.nissanlakecountry.com/*",
     "https://www.hyundailakecountry.com/*",
     "https://*.boucher.com/*",
-    "https://vpic.nhtsa.dot.gov/*"
+    "https://vpic.nhtsa.dot.gov/*",
+    "https://vehicle-images.carscommerce.inc/*",
+    "https://*.carscommerce.inc/*",
+    "https://pictures.dealer.com/*",
+    "https://images.dealer.com/*",
+    "https://imagescdn.dealercarsearch.com/*",
+    "https://*.cloudfront.net/*"
   ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
       "matches": [
@@ -38,6 +48,7 @@
       ],
       "js": [
         "listing-copy.js",
+        "photos.js",
         "content-fb.js"
       ],
       "run_at": "document_idle"
