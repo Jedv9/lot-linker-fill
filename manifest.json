@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Lot Linker Fill",
-  "version": "2.2.2",
-  "description": "Fill Marketplace Year, Make, Price, Model, description, and photos from stock. Never VIN. You hit Post.",
+  "version": "2.2.3",
+  "description": "Fill Marketplace Year, Make, Price, Mileage, body, colors, fuel, Model, description, and photos. Never VIN. You hit Post.",
   "action": {
     "default_popup": "popup.html",
     "default_title": "Lot Linker Fill",

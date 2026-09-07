@@ -1,6 +1,6 @@
 # Lot Linker Fill
 
-Chrome MV3 extension for Lake Country Nissan / Hyundai. Pick a stock number and **Fill** Facebook Marketplace vehicle **Year**, **Make**, **Price**, **Model**, **Description**, and **photos** in one click. You always hit Post. VIN is never touched.
+Chrome MV3 extension for Lake Country Nissan / Hyundai. Pick a stock number and **Fill** Facebook Marketplace vehicle **Year**, **Make**, **Price**, **Mileage**, **Body style**, **Exterior color**, **Interior color**, **Fuel type**, **Model**, **Description**, and **photos** in one click. You always hit Post. VIN, clean title, and vehicle condition are never touched.
 
 **Repo:** https://github.com/Jedv9/lot-linker-fill
 
@@ -11,12 +11,12 @@ Chrome MV3 extension for Lake Country Nissan / Hyundai. Pick a stock number and 
 ## Use
 1. Open Facebook Marketplace → create **vehicle** listing (`/marketplace/create/vehicle` or equivalent)
 2. Open the extension, search by stock / VIN / model — each row shows mileage and price
-3. Click **Fill** (one click: Year + Make + Price + Model + description + photos)
+3. Click **Fill** (Year, Make, Price, Mileage, body, colors, fuel, Model, description, photos)
 4. You click Post — the extension never publishes
 
 Jed should not download photos separately. **Save photos (fallback)** is only if Marketplace’s picker misses (Facebook UI change / no file input).
 
-Model line and description are generated at fill time from pack fields (`year`, `make`, `model`, `trim`, `price`, `mileage`, `stock`, `rooftop`, `bodyStyle`, `drivetrain`, `engine` if present, plus verified features from `features` / `equipment` / pack `body` standouts). **Year**, **Make**, and **Price** are written into their own Marketplace fields. VIN is never filled. Mileage is left alone.
+Model line and description are generated at fill time from pack fields (`year`, `make`, `model`, `trim`, `price`, `mileage`, `stock`, `rooftop`, `bodyStyle`, `drivetrain`, `engine` if present, plus verified features from `features` / `equipment` / pack `body` standouts). **Year**, **Make**, **Price**, **Mileage**, **Body style**, **Exterior color**, **Interior color**, and **Fuel type** are written into their own Marketplace fields when the pack has a value we can map. VIN is never filled. The clean-title checkbox and vehicle condition are left alone.
 
 ## Model line (Facebook vehicle create)
 `{Model} {Trim} | {engine or drivetrain or body} | ${price} | Oconomowoc WI`
@@ -45,9 +45,9 @@ Bundled `packs.json` loads on open. **Refresh packs** pulls the latest `packs.js
 ```
 bash scripts/build-zip.sh
 ```
-Writes `dist/lot-linker-fill-2.2.2.zip` and `dist/lot-linker-fill.zip` (unpacked folder inside the zip).
+Writes `dist/lot-linker-fill-2.2.3.zip` and `dist/lot-linker-fill.zip` (unpacked folder inside the zip).
 
 ## Version
-2.2.2
+2.2.3
 
-One-click Fill writes **only** **Year** (combobox / `aria-label="Year"`), **Make** (combobox), **Price** (numeric input), **Model** title line, **Description**, and **photos**. **VIN is never written** — the VIN field is skipped at find and at write. Mileage, colors, trim, and body style are not filled. Description fill still walks Facebook’s vehicle-create markup: wrapper `[aria-label="Description"]`, nested `textarea` / `[role=textbox]` / `contenteditable`. Year/Make open `[role=combobox]` then click a matching `[role=option]`. Price uses `_valueTracker` + input/change on the Price field.
+One-click Fill writes **Year**, **Make**, **Price**, **Mileage**, **Body style**, **Exterior color**, **Interior color**, **Fuel type**, **Model** title line, **Description**, and **photos**. **VIN is never written**. Clean title and vehicle condition are never written. Description fill still walks Facebook’s vehicle-create markup. Year/Make/body/colors/fuel open `[role=combobox]` then click a matching `[role=option]`. Price and Mileage use digits only.

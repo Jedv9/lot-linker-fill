@@ -1,5 +1,5 @@
-// Lot Linker Fill — Year/Make/Price + Model + description + photos.
-// Never VIN. Never mileage/colors. Never Post.
+// Lot Linker Fill — Year/Make/Price/Mileage/body/colors/fuel + Model + description + photos.
+// Never VIN. Never clean-title checkbox. Never vehicle condition. Never Post.
 function isMarketplacePath() {
   return /marketplace/i.test(location.pathname + location.href);
 }
@@ -47,7 +47,7 @@ const DESC_ATTR_SELECTORS = [
 
 function setNativeValue(el, value) {
   if (!el || value == null) return false;
-  if (isVinControl(el)) return false;
+  if (isOffLimitsControl(el)) return false;
   const next = String(value);
   const proto =
     el instanceof HTMLTextAreaElement
@@ -151,10 +151,10 @@ function resolveEditable(el) {
 }
 
 function fillMultiline(el, value) {
-  if (isVinControl(el)) return false;
+  if (isOffLimitsControl(el)) return false;
   const text = String(value);
   const target = resolveEditable(el) || el;
-  if (isVinControl(target)) return false;
+  if (isOffLimitsControl(target)) return false;
   scrollElIntoView(target);
   try {
     target.focus();
@@ -311,7 +311,14 @@ function isProtectedLabel(lab) {
     /\bmileage\b/.test(lab) ||
     /\bodometer\b/.test(lab) ||
     /\bvin\b/.test(lab) ||
-    /vehicle identification/.test(lab)
+    /vehicle identification/.test(lab) ||
+    /body style/.test(lab) ||
+    /\bexterior\b/.test(lab) ||
+    /\binterior\b/.test(lab) ||
+    /\bfuel\b/.test(lab) ||
+    /clean title/.test(lab) ||
+    /title status/.test(lab) ||
+    /vehicle condition/.test(lab)
   );
 }
 
@@ -329,6 +336,24 @@ function isVinControl(el) {
     .join(" ")
     .toLowerCase();
   return /\bvin\b/.test(bits) || /vehicle identification/.test(bits);
+}
+
+function isOffLimitsLabel(lab) {
+  const t = String(lab || "").toLowerCase();
+  return (
+    isVinLabel(t) ||
+    /clean title/.test(t) ||
+    /this vehicle has a clean title/.test(t) ||
+    /title status/.test(t) ||
+    /vehicle condition/.test(t) ||
+    /^(new or used|used or new|condition)$/.test(t)
+  );
+}
+
+function isOffLimitsControl(el) {
+  if (!el) return false;
+  if (isVinControl(el)) return true;
+  return isOffLimitsLabel(ownLabel(el));
 }
 
 function ownLabel(el) {
@@ -391,6 +416,86 @@ function priceDigits(pack) {
   return String(Math.round(n));
 }
 
+function mileageDigits(pack) {
+  const raw =
+    pack?.odometerMiles != null && pack.odometerMiles !== "" ? pack.odometerMiles : pack?.mileage;
+  if (raw == null || raw === "") return "";
+  const n = Number(String(raw).replace(/[^\d]/g, ""));
+  if (!Number.isFinite(n) || n < 0) return "";
+  return String(Math.round(n));
+}
+
+function bodyStyleCandidates(pack) {
+  if (isBlankPackValue(pack?.bodyStyle)) return [];
+  const t = String(pack.bodyStyle).toLowerCase();
+  if (/sedan/.test(t)) return ["Sedan"];
+  if (/suv|sport utility|crossover/.test(t)) return ["SUV"];
+  if (/hatch/.test(t)) return ["Hatchback"];
+  if (/minivan/.test(t)) return ["Minivan"];
+  if (/\bvan\b/.test(t)) return ["Minivan", "Van"];
+  if (/coupe/.test(t)) return ["Coupe"];
+  if (/convertible/.test(t)) return ["Convertible"];
+  if (/wagon/.test(t)) return ["Wagon"];
+  if (/crew|cab|supercrew|pickup|truck/.test(t)) return ["Truck"];
+  const cleaned = String(pack.bodyStyle).replace(/\s+\dD$/i, "").trim();
+  return cleaned ? [cleaned] : [];
+}
+
+function colorCandidates(raw) {
+  if (isBlankPackValue(raw)) return [];
+  const s = String(raw).toLowerCase();
+  const palette = [
+    ["charcoal", ["Charcoal", "Grey", "Gray", "Black"]],
+    ["burgundy", ["Burgundy", "Red"]],
+    ["maroon", ["Burgundy", "Red"]],
+    ["ivory", ["Ivory", "White"]],
+    ["cream", ["Cream", "Beige", "White"]],
+    ["beige", ["Beige", "Tan"]],
+    ["bronze", ["Bronze", "Brown"]],
+    ["silver", ["Silver"]],
+    ["white", ["White"]],
+    ["black", ["Black"]],
+    ["navy", ["Blue"]],
+    ["blue", ["Blue"]],
+    ["green", ["Green"]],
+    ["brown", ["Brown"]],
+    ["gold", ["Gold"]],
+    ["yellow", ["Yellow"]],
+    ["orange", ["Orange"]],
+    ["purple", ["Purple"]],
+    ["pink", ["Pink"]],
+    ["tan", ["Tan", "Beige"]],
+    ["gray", ["Grey", "Gray"]],
+    ["grey", ["Grey", "Gray"]],
+    ["red", ["Red"]],
+  ];
+  for (const [word, aliases] of palette) {
+    if (new RegExp(`\\b${word}\\b`).test(s)) return aliases;
+  }
+  return [];
+}
+
+function fuelCandidates(pack) {
+  if (isBlankPackValue(pack?.fuel)) return [];
+  const t = String(pack.fuel).toLowerCase();
+  if (/plug-?in|phev/.test(t)) return ["Plug-in hybrid", "Plugin hybrid", "Hybrid"];
+  if (/hybrid/.test(t)) return ["Hybrid"];
+  if (/electric|\bev\b/.test(t)) return ["Electric"];
+  if (/diesel/.test(t)) return ["Diesel"];
+  if (/flex|e85/.test(t)) return ["Flex", "Flex fuel"];
+  if (/hydrogen|fuel cell/.test(t)) return ["Hydrogen"];
+  if (/gas/.test(t)) return ["Gasoline"];
+  return [String(pack.fuel).trim()];
+}
+
+async function fillChoiceAny(matchers, values, exclude = []) {
+  const list = [...new Set((values || []).map((v) => String(v || "").trim()).filter((v) => !isBlankPackValue(v)))];
+  for (const v of list) {
+    if (await fillChoice(matchers, v, exclude)) return true;
+  }
+  return false;
+}
+
 function allInputs() {
   return [
     ...document.querySelectorAll(
@@ -442,7 +547,7 @@ function controlInside(root) {
 }
 
 function usableDescription(el) {
-  if (!el || isVinControl(el)) return false;
+  if (!el || isOffLimitsControl(el)) return false;
   const lab = labelText(el);
   if (isProtectedLabel(lab)) return false;
   if (DESC_EXCLUDE.some((x) => x.test(lab))) return false;
@@ -452,9 +557,9 @@ function usableDescription(el) {
 function findField(matchers, { exclude = [], prefer } = {}) {
   const hits = [];
   for (const el of allInputs()) {
-    if (isVinControl(el)) continue;
+    if (isOffLimitsControl(el)) continue;
     const own = ownLabel(el);
-    if (isVinLabel(own)) continue;
+    if (isVinLabel(own) || isOffLimitsLabel(own)) continue;
     if (exclude.some((x) => x.test(own))) continue;
     if (own && matchers.some((m) => m.test(own))) {
       hits.push({ el, lab: own, ownHit: true });
@@ -484,7 +589,7 @@ function findField(matchers, { exclude = [], prefer } = {}) {
 function fillText(matchers, value, exclude, prefer) {
   if (value == null || value === "") return false;
   const el = findField(matchers, { exclude, prefer });
-  if (!el || isVinControl(el)) return false;
+  if (!el || isOffLimitsControl(el)) return false;
   return fillMultiline(el, value);
 }
 
@@ -503,7 +608,7 @@ function findChoiceControl(matchers, exclude = []) {
     const own = ownLabel(el);
     const lab = own || labelText(el);
     if (!lab) continue;
-    if (isVinControl(el) || isVinLabel(own) || isVinLabel(lab)) continue;
+    if (isOffLimitsControl(el) || isVinLabel(own) || isVinLabel(lab) || isOffLimitsLabel(own) || isOffLimitsLabel(lab)) continue;
     if (exclude.some((x) => x.test(own) || x.test(lab))) continue;
     const ownHit = own && matchers.some((m) => m.test(own));
     const deepHit = matchers.some((m) => m.test(lab) || m.test(labelText(el)));
@@ -516,7 +621,7 @@ function findChoiceControl(matchers, exclude = []) {
       const own = ownLabel(el);
       const lab = own || labelText(el);
       if (!lab) continue;
-      if (isVinControl(el) || isVinLabel(own) || isVinLabel(lab)) continue;
+      if (isOffLimitsControl(el) || isVinLabel(own) || isVinLabel(lab) || isOffLimitsLabel(own) || isOffLimitsLabel(lab)) continue;
       if (exclude.some((x) => x.test(own) || x.test(lab))) continue;
       if (!matchers.some((m) => m.test(own) || m.test(lab))) continue;
       if (el.closest("input, textarea, [contenteditable]")) continue;
@@ -586,7 +691,7 @@ function choiceLooksSet(el, value) {
 async function fillChoice(matchers, value, exclude = []) {
   if (isBlankPackValue(value)) return false;
   const el = findChoiceControl(matchers, exclude) || findField(matchers, { exclude });
-  if (!el || isUnsafeClickTarget(el) || isVinControl(el) || isVinLabel(ownLabel(el))) return false;
+  if (!el || isUnsafeClickTarget(el) || isOffLimitsControl(el) || isVinLabel(ownLabel(el))) return false;
   if (el instanceof HTMLSelectElement) return fillNativeSelect(el, value);
   if ((el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) && fillMultiline(el, value) && looksFilled(el, value)) {
     return true;
@@ -823,7 +928,8 @@ function findPhotoDropzone() {
 function isUnsafeClickTarget(el) {
   if (!el) return true;
   const t = shortText(el.getAttribute("aria-label") || el.textContent || "");
-  return NEVER_CLICK_RE.test(t) || /\b(post|publish) listing\b/i.test(t);
+  if (NEVER_CLICK_RE.test(t) || /\b(post|publish) listing\b/i.test(t)) return true;
+  return isOffLimitsLabel(ownLabel(el)) || isOffLimitsLabel(t);
 }
 
 function revealPhotoPicker() {
@@ -1011,7 +1117,7 @@ function fillDescription(value) {
   if (value == null || value === "") return { ok: false, via: "" };
   const found = findDescriptionField();
   if (!found?.el) return { ok: false, via: "" };
-  if (isVinControl(found.el) || isProtectedLabel(labelText(found.el))) return { ok: false, via: "" };
+  if (isOffLimitsControl(found.el) || isProtectedLabel(labelText(found.el))) return { ok: false, via: "" };
   scrollElIntoView(found.el);
   const ok = fillMultiline(found.el, value);
   return { ok, via: ok ? found.via : "" };
@@ -1043,6 +1149,10 @@ const CHOICE_EXCLUDE = [
   /item title/,
   /\bvin\b/,
   /vehicle identification/,
+  /clean title/,
+  /title status/,
+  /vehicle condition/,
+  /^condition$/,
 ];
 
 function markIfPresent(mark, key, packHas, ok) {
@@ -1051,14 +1161,16 @@ function markIfPresent(mark, key, packHas, ok) {
 }
 
 async function fillPackOnce(pack) {
-  // Filled only: Year, Make, Price, Model title line, Description.
-  // Never VIN. Never mileage, colors, trim, or body style.
+  // Fill when pack has a value: Year, Make, Price, Mileage, Body style,
+  // Exterior color, Interior color, Fuel, Model title line, Description.
+  // Never VIN. Never clean-title checkbox. Never vehicle condition.
   const p = pack || {};
   const listing = listingFromPack(p);
   const filled = [];
   const missed = [];
   const mark = (key, ok) => (ok ? filled : missed).push(key);
   const modelLine = listing.modelLine || "";
+  const specExclude = [...CHOICE_EXCLUDE, /\byear\b/, /\bmake\b/, /\bmodel\b/, /\bprice\b/, /\bmileage\b/];
 
   const yearVal = isBlankPackValue(p.year) ? "" : String(p.year).trim();
   markIfPresent(
@@ -1096,6 +1208,63 @@ async function fillPackOnce(pack) {
     )
   );
 
+  const miles = mileageDigits(p);
+  markIfPresent(
+    mark,
+    "mileage",
+    Boolean(miles),
+    fillText(
+      [/^mileage$/, /\bmileage\b/, /\bodometer\b/, /\bmiles\b/],
+      miles,
+      [/price/, /description/, /\bmodel\b/, /year/, /make/, /\bvin\b/],
+      "single"
+    )
+  );
+
+  const bodyVals = bodyStyleCandidates(p);
+  markIfPresent(
+    mark,
+    "bodyStyle",
+    bodyVals.length > 0,
+    await fillChoiceAny([/^body style$/, /\bbody style\b/, /^body$/], bodyVals, [...specExclude, /\bexterior\b/, /\binterior\b/, /\bfuel\b/])
+  );
+
+  const extVals = colorCandidates(p.exterior);
+  markIfPresent(
+    mark,
+    "exterior",
+    extVals.length > 0,
+    await fillChoiceAny(
+      [/^exterior$/, /\bexterior colou?r\b/, /\bexterior\b/, /outside colou?r/],
+      extVals,
+      [...specExclude, /\binterior\b/, /\bfuel\b/, /body style/]
+    )
+  );
+
+  const intVals = colorCandidates(p.interior);
+  markIfPresent(
+    mark,
+    "interior",
+    intVals.length > 0,
+    await fillChoiceAny(
+      [/^interior$/, /\binterior colou?r\b/, /\binterior\b/, /inside colou?r/],
+      intVals,
+      [...specExclude, /\bexterior\b/, /\bfuel\b/, /body style/]
+    )
+  );
+
+  const fuelVals = fuelCandidates(p);
+  markIfPresent(
+    mark,
+    "fuel",
+    fuelVals.length > 0,
+    await fillChoiceAny(
+      [/^fuel type$/, /\bfuel type\b/, /^fuel$/, /\bfuel\b/],
+      fuelVals,
+      [...specExclude, /\bexterior\b/, /\binterior\b/, /body style/]
+    )
+  );
+
   const desc = fillDescription(listing.body);
   mark("description", desc.ok);
 
@@ -1105,7 +1274,7 @@ async function fillPackOnce(pack) {
     modelLine,
     title: listing.title,
     descriptionHit: desc.via || "",
-    notes: "Year/Make/Price + Model + description + photos. Never VIN. You hit Post.",
+    notes: "Year/Make/Price/Mileage/body/colors/fuel + Model + description + photos. Never VIN. You hit Post.",
   };
 }
 
@@ -1122,13 +1291,24 @@ function mergePhotoResult(textResult, photoResult) {
     filled: [...new Set(filled)],
     missed: [...new Set(missed)],
     photos,
-    notes: "Year/Make/Price + Model + description + photos. Never VIN. You hit Post.",
+    notes: "Year/Make/Price/Mileage/body/colors/fuel + Model + description + photos. Never VIN. You hit Post.",
   };
 }
 
 async function fillPack(pack) {
   let textResult = await fillPackOnce(pack);
-  const retryKeys = ["description", "year", "make", "price", "model"].filter((k) => textResult.missed.includes(k));
+  const retryKeys = [
+    "description",
+    "year",
+    "make",
+    "price",
+    "model",
+    "mileage",
+    "bodyStyle",
+    "exterior",
+    "interior",
+    "fuel",
+  ].filter((k) => textResult.missed.includes(k));
   if (retryKeys.length) {
     revealDescriptionArea();
     await delay(280);

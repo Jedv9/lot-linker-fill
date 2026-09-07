@@ -25,7 +25,7 @@
 </head>
 <body>
   <h1>Marketplace vehicle create listing (fixture)</h1>
-  <p class="warn">Fill Year (combobox), Make (combobox), Price (digits), Model title line, Description. Never VIN. Never Post.</p>
+  <p class="warn">Fill Year, Make, Price, Mileage, Body style, colors, Fuel, Model, Description. Never VIN. Never clean title. Never condition. Never Post.</p>
   <div class="row">
     <button id="fillRaptor" type="button">Fill Ford PU1392</button>
     <button id="fillNissan" type="button">Fill Nissan 26NU0143</button>
@@ -55,12 +55,35 @@
     <input id="mileage" aria-label="Mileage" value="87000" />
   </div>
   <div class="fb-field">
+    <span>Body style</span>
+    <div id="body-style" role="combobox" aria-label="Body style" aria-haspopup="listbox" tabindex="0"></div>
+  </div>
+  <div class="fb-field">
+    <span>Exterior color</span>
+    <div id="exterior" role="combobox" aria-label="Exterior color" aria-haspopup="listbox" tabindex="0"></div>
+  </div>
+  <div class="fb-field">
+    <span>Interior color</span>
+    <div id="interior" role="combobox" aria-label="Interior color" aria-haspopup="listbox" tabindex="0"></div>
+  </div>
+  <div class="fb-field">
+    <span>Fuel type</span>
+    <div id="fuel" role="combobox" aria-label="Fuel type" aria-haspopup="listbox" tabindex="0"></div>
+  </div>
+  <div class="fb-field">
     <span>VIN</span>
     <input id="vin" aria-label="VIN" value="DO-NOT-TOUCH" />
   </div>
   <div class="fb-field">
     <span>Title status</span>
     <input id="title-status" aria-label="Title status" value="Clean" />
+  </div>
+  <div class="fb-field">
+    <label><input id="clean-title" type="checkbox" aria-label="This vehicle has a clean title" /> This vehicle has a clean title</label>
+  </div>
+  <div class="fb-field">
+    <span>Vehicle condition</span>
+    <input id="condition" aria-label="Vehicle condition" value="" />
   </div>
 
   <div class="below-fold" aria-hidden="true"></div>
@@ -109,6 +132,10 @@
     }
     wireCombo("year", ["2012", "2026", "2016"]);
     wireCombo("make", ["Ford", "Nissan", "Hyundai"]);
+    wireCombo("body-style", ["Sedan", "SUV", "Truck", "Hatchback", "Coupe", "Minivan", "Wagon"]);
+    wireCombo("exterior", ["Black", "Blue", "Grey", "Gray", "Silver", "White", "Red"]);
+    wireCombo("interior", ["Black", "Grey", "Gray", "Tan", "Beige"]);
+    wireCombo("fuel", ["Gasoline", "Diesel", "Electric", "Hybrid"]);
 
     function descEl() {
       return document.querySelector('[data-lot="description"]');
@@ -122,8 +149,14 @@
         model: document.getElementById("model").value,
         price: document.getElementById("price").value,
         mileage: document.getElementById("mileage").value,
+        bodyStyle: document.getElementById("body-style").textContent.trim(),
+        exterior: document.getElementById("exterior").textContent.trim(),
+        interior: document.getElementById("interior").textContent.trim(),
+        fuel: document.getElementById("fuel").textContent.trim(),
         vin: document.getElementById("vin").value,
         titleStatus: document.getElementById("title-status").value,
+        cleanTitle: document.getElementById("clean-title").checked,
+        condition: document.getElementById("condition").value,
         description: (d && (d.innerText || d.textContent)) || "",
       };
     }
@@ -136,8 +169,14 @@
       document.getElementById("model").value = "";
       document.getElementById("price").value = "";
       document.getElementById("mileage").value = mileage;
+      for (const id of ["body-style", "exterior", "interior", "fuel"]) {
+        document.getElementById(id).textContent = "";
+        document.getElementById(id).dataset.value = "";
+      }
       document.getElementById("vin").value = "DO-NOT-TOUCH";
       document.getElementById("title-status").value = "Clean";
+      document.getElementById("clean-title").checked = false;
+      document.getElementById("condition").value = "";
       const d = descEl();
       if (d) {
         d.innerHTML = "";
@@ -154,11 +193,11 @@
       const makeOk = fields.make === pack.make && result.filled.includes("make");
       const priceOk = fields.price === String(pack.price) && result.filled.includes("price");
       const vinOk = fields.vin === "DO-NOT-TOUCH" && !result.filled.includes("vin");
-      const mileageOk = fields.mileage === preset.mileage;
-      const titleOk = fields.titleStatus === "Clean";
+      const mileageOk = fields.mileage === String(pack.mileage) && result.filled.includes("mileage");
+      const titleOk = fields.titleStatus === "Clean" && !fields.cleanTitle && fields.condition === "";
       const modelOk = fields.model === listing.modelLine && !/^20\d{2}\b/.test(fields.model) && !/Ford|Nissan|Hyundai/i.test(fields.model.split(" | ")[0] || "");
       const descOk = fields.description.includes("Wisconsin shoppers") && /\n/.test(fields.description);
-      const keysOk = ["year", "make", "price", "model", "description"].every((k) => result.filled.includes(k)) && !result.missed.length;
+      const keysOk = ["year", "make", "price", "model", "description", "mileage"].every((k) => result.filled.includes(k)) && !result.missed.length && !result.filled.includes("vin") && !result.filled.includes("condition");
       const hitOk = Boolean(result.descriptionHit);
       const ok = yearOk && makeOk && priceOk && vinOk && mileageOk && titleOk && modelOk && descOk && keysOk && hitOk;
       document.getElementById("status").textContent =
@@ -166,8 +205,8 @@
       return { label, ok, result, fields, listing };
     }
 
-    const raptor = {"stock":"PU1392","year":"2012","make":"Ford","model":"F-150","trim":"SVT Raptor","bodyStyle":"Crew Cab 4D","mileage":"87000","vin":"1FTWX1R64CFA00000","condition":"USED","drivetrain":"4WD","price":"26900","rooftop":"Lake Country Nissan","body":"USED 2012 Ford F-150 SVT Raptor · 4WD. Located at Lake Country Nissan. Stock PU1392, 87,000 miles. Standouts: Heated Seats · Backup Camera · 4WD."};
-    const nissan = {"stock":"26NU0143","year":"2026","make":"Nissan","model":"Altima","trim":"2.5 SR","bodyStyle":"Sedan 4D","mileage":"0","vin":"1N4BL4CW4TN327585","condition":"NEW","drivetrain":"AWD","price":"30470","rooftop":"Lake Country Nissan","body":"NEW 2026 Nissan Altima 2.5 SR · AWD. Located at Lake Country Nissan, N48W36216 E Wisconsin Ave, Oconomowoc. Stock 26NU0143. Standouts: Blind Spot Monitor · Lane Departure Warning · Parking Sensors / Assist · Forward Collision Warning · Bluetooth · Power Blue Seats. Also: Android Auto, Apple CarPlay, leatherette seats, Satellite Radio Ready. Price does not include tax, title, registration, and service fees. Call (262) 522-7200 and ask for Jed."};
+    const raptor = {"stock":"PU1392","year":"2012","make":"Ford","model":"F-150","trim":"SVT Raptor","bodyStyle":"Crew Cab 4D","mileage":"87000","vin":"1FTWX1R64CFA00000","condition":"USED","exterior":"Black","interior":"Black","fuel":"Gasoline","drivetrain":"4WD","price":"26900","rooftop":"Lake Country Nissan","body":"USED 2012 Ford F-150 SVT Raptor · 4WD. Located at Lake Country Nissan. Stock PU1392, 87,000 miles. Standouts: Heated Seats · Backup Camera · 4WD."};
+    const nissan = {"stock":"26NU0143","year":"2026","make":"Nissan","model":"Altima","trim":"2.5 SR","bodyStyle":"Sedan 4D","mileage":"0","vin":"1N4BL4CW4TN327585","condition":"NEW","exterior":"Gray Sky Pearl","interior":"Sport","fuel":"Gasoline","drivetrain":"AWD","price":"30470","rooftop":"Lake Country Nissan","body":"NEW 2026 Nissan Altima 2.5 SR · AWD. Located at Lake Country Nissan, N48W36216 E Wisconsin Ave, Oconomowoc. Stock 26NU0143. Standouts: Blind Spot Monitor · Lane Departure Warning · Parking Sensors / Assist · Forward Collision Warning · Bluetooth · Power Blue Seats. Also: Android Auto, Apple CarPlay, leatherette seats, Satellite Radio Ready. Price does not include tax, title, registration, and service fees. Call (262) 522-7200 and ask for Jed."};
     document.getElementById("fillRaptor").onclick = () => runFill(raptor, "Raptor", { mileage: "87000" });
     document.getElementById("fillNissan").onclick = () => runFill(nissan, "Nissan", { mileage: "0" });
 
@@ -185,8 +224,14 @@
         make: r.fields.make,
         price: r.fields.price,
         mileage: r.fields.mileage,
+        bodyStyle: r.fields.bodyStyle,
+        exterior: r.fields.exterior,
+        interior: r.fields.interior,
+        fuel: r.fields.fuel,
         vin: r.fields.vin,
         titleStatus: r.fields.titleStatus,
+        cleanTitle: r.fields.cleanTitle,
+        condition: r.fields.condition,
         descriptionHasNewlines: /\n/.test(r.fields.description),
         descriptionFilled: r.result.filled.includes("description") && !r.result.missed.includes("description"),
       })));

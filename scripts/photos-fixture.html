@@ -25,6 +25,7 @@
   <label>Model <input id="model" /></label>
   <label>Price <input id="price" aria-label="Price" /></label>
   <label>Mileage <input id="mileage" aria-label="Mileage" value="87000" /></label>
+  <label>Body style <input id="body-style" aria-label="Body style" /></label>
   <label>VIN <input id="vin" aria-label="VIN" value="DO-NOT-TOUCH" /></label>
   <label>Description
     <textarea id="description" aria-label="Description" rows="8"></textarea>
@@ -119,7 +120,7 @@
         makeOk: make === "Ford" && result.filled.includes("make"),
         priceOk: price === "26900" && result.filled.includes("price"),
         vinOk: vin === "DO-NOT-TOUCH" && !result.filled.includes("vin"),
-        mileageUntouched: mileage === "87000",
+        mileageOk: mileage === "87000" && result.filled.includes("mileage"),
         postClicks,
         neverPosted: postClicks === 0,
       };
@@ -133,7 +134,7 @@
         report.makeOk &&
         report.priceOk &&
         report.vinOk &&
-        report.mileageUntouched &&
+        report.mileageOk &&
         report.neverPosted;
 
       document.getElementById("status").textContent = report.ok
