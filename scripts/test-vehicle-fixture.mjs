@@ -25,18 +25,30 @@ assert.ok(report.length >= 1, "expected fixture fill reports");
 
 for (const row of report) {
   assert.equal(row.ok, true, `${row.label} fixture failed: ${JSON.stringify(row)}`);
-  assert.deepEqual(row.filled, ["model", "description"]);
+  assert.ok(row.filled.includes("year"), `${row.label} year`);
+  assert.ok(row.filled.includes("make"), `${row.label} make`);
+  assert.ok(row.filled.includes("price"), `${row.label} price`);
+  assert.ok(row.filled.includes("model"), `${row.label} model`);
+  assert.ok(row.filled.includes("description"), `${row.label} description`);
+  assert.ok(!row.filled.includes("vin"), `${row.label} must not fill VIN`);
   assert.deepEqual(row.missed, []);
   assert.equal(row.descriptionFilled, true, `${row.label} Description must be filled, not missed`);
   assert.ok(row.descriptionHit, `${row.label} must report the Description selector`);
   assert.equal(row.model, row.modelLine);
   assert.equal(row.descriptionHasNewlines, true);
   assert.equal(row.titleStatus, "Clean");
+  assert.equal(row.vin, "DO-NOT-TOUCH");
   if (row.label === "Raptor") {
     assert.equal(row.model, "F-150 SVT Raptor | 4WD | $26,900 | Oconomowoc WI");
     assert.equal(row.year, "2012");
     assert.equal(row.make, "Ford");
+    assert.equal(row.price, "26900");
     assert.equal(row.mileage, "87000");
+  }
+  if (row.label === "Nissan") {
+    assert.equal(row.year, "2026");
+    assert.equal(row.make, "Nissan");
+    assert.equal(row.price, "30470");
   }
 }
 

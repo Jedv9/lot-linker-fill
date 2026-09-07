@@ -20,10 +20,12 @@
   <button id="post" type="button">Post</button>
   <div id="status"></div>
 
-  <label>Year <input id="year" aria-label="Year" value="2012" /></label>
-  <label>Make <input id="make" aria-label="Make" value="Ford" /></label>
+  <label>Year <input id="year" aria-label="Year" /></label>
+  <label>Make <input id="make" aria-label="Make" /></label>
   <label>Model <input id="model" /></label>
+  <label>Price <input id="price" aria-label="Price" /></label>
   <label>Mileage <input id="mileage" aria-label="Mileage" value="87000" /></label>
+  <label>VIN <input id="vin" aria-label="VIN" value="DO-NOT-TOUCH" /></label>
   <label>Description
     <textarea id="description" aria-label="Description" rows="8"></textarea>
   </label>
@@ -76,6 +78,7 @@
         stock: "PU1392",
         year: "2012",
         make: "Ford",
+        vin: "1FTWX1R64CFA00000",
         model: "F-150",
         trim: "SVT Raptor",
         bodyStyle: "Crew Cab 4D",
@@ -95,7 +98,9 @@
       const desc = document.getElementById("description").value;
       const year = document.getElementById("year").value;
       const make = document.getElementById("make").value;
+      const price = document.getElementById("price").value;
       const mileage = document.getElementById("mileage").value;
+      const vin = document.getElementById("vin").value;
 
       const report = {
         extracted,
@@ -110,7 +115,11 @@
         photosOk: input.files.length === 2 && result.filled.includes("photos"),
         modelOk: model === "F-150 SVT Raptor | 4WD | $26,900 | Oconomowoc WI",
         descOk: desc.includes("Wisconsin shoppers") && /\n/.test(desc),
-        protectedOk: year === "2012" && make === "Ford" && mileage === "87000",
+        yearOk: year === "2012" && result.filled.includes("year"),
+        makeOk: make === "Ford" && result.filled.includes("make"),
+        priceOk: price === "26900" && result.filled.includes("price"),
+        vinOk: vin === "DO-NOT-TOUCH" && !result.filled.includes("vin"),
+        mileageUntouched: mileage === "87000",
         postClicks,
         neverPosted: postClicks === 0,
       };
@@ -120,7 +129,11 @@
         report.photosOk &&
         report.modelOk &&
         report.descOk &&
-        report.protectedOk &&
+        report.yearOk &&
+        report.makeOk &&
+        report.priceOk &&
+        report.vinOk &&
+        report.mileageUntouched &&
         report.neverPosted;
 
       document.getElementById("status").textContent = report.ok

@@ -1,4 +1,4 @@
-// Lot Linker Fill — Model + description + photos. Never Post. Never Year/Make/Mileage.
+// Lot Linker Fill — Year/Make/Price + Model + description + photos. Never Post.
 function isMarketplacePath() {
   return /marketplace/i.test(location.pathname + location.href);
 }
@@ -300,12 +300,79 @@ function labelText(el) {
 }
 
 function isProtectedLabel(lab) {
+  // Description must never land on these spec controls.
   return (
     /\byear\b/.test(lab) ||
     /\bmake\b/.test(lab) ||
     /\bmileage\b/.test(lab) ||
-    /\bodometer\b/.test(lab)
+    /\bodometer\b/.test(lab) ||
+    /\bvin\b/.test(lab) ||
+    /vehicle identification/.test(lab)
   );
+}
+
+function isVinLabel(lab) {
+  return /\bvin\b/.test(lab) || /vehicle identification/.test(lab);
+}
+
+function ownLabel(el) {
+  if (!el) return "";
+  const bits = [
+    el.getAttribute("aria-label"),
+    el.getAttribute("aria-placeholder"),
+    el.getAttribute("data-placeholder"),
+    el.placeholder,
+    el.name,
+    el.id && el.id.length < 24 ? el.id : "",
+  ];
+  const labelledBy = el.getAttribute("aria-labelledby");
+  if (labelledBy) {
+    for (const id of labelledBy.split(/\s+/)) {
+      const n = document.getElementById(id);
+      if (n) bits.push(n.textContent);
+    }
+  }
+  if (el.id) {
+    try {
+      const forLab = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+      if (forLab) bits.push(forLab.textContent);
+    } catch {
+      /* ignore */
+    }
+  }
+  const closestLabel = el.closest("label");
+  if (closestLabel) {
+    const t = shortText(closestLabel.textContent);
+    if (t && t.length < 48) bits.push(t);
+  }
+  const prev = el.previousElementSibling;
+  if (prev && !isControl(prev) && !prev.querySelector?.("input, textarea, [contenteditable], [role=textbox], [role=combobox]")) {
+    const t = shortText(prev.textContent);
+    if (t && t.length < 40) bits.push(t);
+  }
+  const parent = el.parentElement;
+  if (parent) {
+    const pLab = parent.getAttribute("aria-label");
+    if (pLab) bits.push(pLab);
+    const kid = [...parent.children].find((n) => {
+      if (n === el || isControl(n)) return false;
+      const t = shortText(n.textContent);
+      return t && t.length < 32 && !n.querySelector("input, textarea, [role=textbox], [role=combobox]");
+    });
+    if (kid) bits.push(kid.textContent);
+  }
+  return bits.filter(Boolean).map(shortText).filter(Boolean).join(" ").toLowerCase();
+}
+
+function isBlankPackValue(v) {
+  const s = String(v == null ? "" : v).replace(/\s+/g, " ").trim();
+  return !s || /^(\[need\]|n\/?a|unknown|tbd|none|-)$/i.test(s);
+}
+
+function priceDigits(pack) {
+  const n = Number(String(pack?.price ?? "").replace(/[^\d.]/g, ""));
+  if (!Number.isFinite(n) || n <= 0) return "";
+  return String(Math.round(n));
 }
 
 function allInputs() {
@@ -369,32 +436,180 @@ function usableDescription(el) {
 function findField(matchers, { exclude = [], prefer } = {}) {
   const hits = [];
   for (const el of allInputs()) {
-    const lab = labelText(el);
-    if (!lab) continue;
-    if (isProtectedLabel(lab)) continue;
-    if (exclude.some((x) => x.test(lab))) continue;
-    if (!matchers.some((m) => m.test(lab))) continue;
-    hits.push({ el, lab });
+    const own = ownLabel(el);
+    if (isVinLabel(own)) continue;
+    if (exclude.some((x) => x.test(own))) continue;
+    if (own && matchers.some((m) => m.test(own))) {
+      hits.push({ el, lab: own, ownHit: true });
+      continue;
+    }
+    const deep = labelText(el);
+    if (isVinLabel(deep)) continue;
+    if (exclude.some((x) => x.test(deep))) continue;
+    if (deep && matchers.some((m) => m.test(deep))) {
+      hits.push({ el, lab: deep, ownHit: false });
+    }
   }
   if (!hits.length) return null;
+  const pool = hits.some((h) => h.ownHit) ? hits.filter((h) => h.ownHit) : hits;
   if (prefer === "multiline") {
-    const multi = hits.find((h) => isMultilineEl(h.el));
+    const multi = pool.find((h) => isMultilineEl(h.el));
     if (multi) return multi.el;
   }
   if (prefer === "single") {
-    const single = hits.find((h) => h.el instanceof HTMLInputElement && !h.el.isContentEditable);
+    const single = pool.find((h) => h.el instanceof HTMLInputElement && !h.el.isContentEditable);
     if (single) return single.el;
   }
-  hits.sort((a, b) => a.lab.length - b.lab.length);
-  return hits[0].el;
+  pool.sort((a, b) => a.lab.length - b.lab.length);
+  return pool[0].el;
 }
 
 function fillText(matchers, value, exclude, prefer) {
   if (value == null || value === "") return false;
   const el = findField(matchers, { exclude, prefer });
   if (!el) return false;
-  if (isProtectedLabel(labelText(el))) return false;
+  if (isVinLabel(ownLabel(el))) return false;
   return fillMultiline(el, value);
+}
+
+function optionText(el) {
+  return shortText(el?.textContent || el?.getAttribute?.("aria-label") || "");
+}
+
+function findChoiceControl(matchers, exclude = []) {
+  const nodes = [
+    ...document.querySelectorAll(
+      '[role="combobox"], [aria-haspopup="listbox"], [aria-haspopup="true"], select, input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=file]):not([type=submit]):not([type=button])'
+    ),
+  ];
+  const hits = [];
+  for (const el of nodes) {
+    const own = ownLabel(el);
+    const lab = own || labelText(el);
+    if (!lab) continue;
+    if (isVinLabel(own) || isVinLabel(lab)) continue;
+    if (exclude.some((x) => x.test(own) || x.test(lab))) continue;
+    const ownHit = own && matchers.some((m) => m.test(own));
+    const deepHit = matchers.some((m) => m.test(lab) || m.test(labelText(el)));
+    if (!ownHit && !deepHit) continue;
+    hits.push({ el, lab: own || lab, ownHit });
+  }
+  if (!hits.length) {
+    for (const el of document.querySelectorAll("[aria-label], [role=button]")) {
+      if (isUnsafeClickTarget(el)) continue;
+      const own = ownLabel(el);
+      const lab = own || labelText(el);
+      if (!lab) continue;
+      if (isVinLabel(own) || isVinLabel(lab)) continue;
+      if (exclude.some((x) => x.test(own) || x.test(lab))) continue;
+      if (!matchers.some((m) => m.test(own) || m.test(lab))) continue;
+      if (el.closest("input, textarea, [contenteditable]")) continue;
+      hits.push({ el, lab, ownHit: Boolean(own && matchers.some((m) => m.test(own))) });
+    }
+  }
+  if (!hits.length) return null;
+  const pool = hits.some((h) => h.ownHit) ? hits.filter((h) => h.ownHit) : hits;
+  pool.sort((a, b) => a.lab.length - b.lab.length);
+  return pool[0].el;
+}
+
+function fillNativeSelect(el, value) {
+  const want = String(value).toLowerCase();
+  const opt = [...el.options].find((o) => {
+    const t = shortText(o.textContent).toLowerCase();
+    return t === want || o.value === String(value) || t.startsWith(want);
+  });
+  if (!opt) return false;
+  el.value = opt.value;
+  try {
+    el._valueTracker?.setValue("");
+  } catch {
+    /* ignore */
+  }
+  el.dispatchEvent(new Event("input", { bubbles: true }));
+  el.dispatchEvent(new Event("change", { bubbles: true }));
+  return true;
+}
+
+function pickOpenOption(want) {
+  const w = shortText(want).toLowerCase();
+  if (!w) return false;
+  const opts = [
+    ...document.querySelectorAll('[role="option"], [role="menuitem"], [role="menuitemradio"], li[role="option"]'),
+  ].filter((o) => !isUnsafeClickTarget(o) && isDisplayed(o));
+  const scored = opts
+    .map((el) => {
+      const t = optionText(el).toLowerCase();
+      let score = 0;
+      if (t === w) score = 3;
+      else if (t.startsWith(w)) score = 2;
+      else if (t.includes(w)) score = 1;
+      return { el, score };
+    })
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score);
+  const hit = scored[0]?.el;
+  if (!hit) return false;
+  try {
+    hit.click();
+  } catch {
+    return false;
+  }
+  return true;
+}
+
+function choiceLooksSet(el, value) {
+  if (!el) return false;
+  if (el instanceof HTMLSelectElement) {
+    const t = shortText(el.selectedOptions?.[0]?.textContent || el.value);
+    return t.toLowerCase() === String(value).toLowerCase() || t.toLowerCase().startsWith(String(value).toLowerCase());
+  }
+  return looksFilled(el, value);
+}
+
+async function fillChoice(matchers, value, exclude = []) {
+  if (isBlankPackValue(value)) return false;
+  const el = findChoiceControl(matchers, exclude) || findField(matchers, { exclude });
+  if (!el || isUnsafeClickTarget(el) || isVinLabel(labelText(el))) return false;
+  if (el instanceof HTMLSelectElement) return fillNativeSelect(el, value);
+  if ((el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) && fillMultiline(el, value) && looksFilled(el, value)) {
+    return true;
+  }
+  scrollElIntoView(el);
+  try {
+    el.focus();
+  } catch {
+    /* ignore */
+  }
+  try {
+    el.click();
+  } catch {
+    /* ignore */
+  }
+  await delay(180);
+  if (pickOpenOption(value)) {
+    await delay(80);
+    return choiceLooksSet(el, value) || true;
+  }
+  const active = document.activeElement;
+  if (active && (active instanceof HTMLInputElement || active.getAttribute("role") === "combobox")) {
+    if (active instanceof HTMLInputElement) fillMultiline(active, value);
+    else {
+      try {
+        active.textContent = String(value);
+        active.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, data: String(value) }));
+      } catch {
+        /* ignore */
+      }
+    }
+    await delay(200);
+    if (pickOpenOption(value)) {
+      await delay(80);
+      return true;
+    }
+  }
+  if (el instanceof HTMLInputElement) return fillMultiline(el, value) && looksFilled(el, value);
+  return choiceLooksSet(el, value);
 }
 
 function controlAfterLabel(node) {
@@ -786,32 +1001,79 @@ function fillDescription(value) {
   return { ok, via: ok ? found.via : "" };
 }
 
-function fillPackOnce(pack) {
-  const listing = listingFromPack(pack || {});
+const MODEL_EXCLUDE = [
+  /description/,
+  /\byear\b/,
+  /\bmake\b/,
+  /\bmileage\b/,
+  /\bodometer\b/,
+  /\bvin\b/,
+  /vehicle identification/,
+  /more details/,
+  /clean title/,
+  /title status/,
+  /listing title/,
+  /item title/,
+  /\bprice\b/,
+  /\btrim\b/,
+];
+
+const CHOICE_EXCLUDE = [
+  /description/,
+  /tell buyers/,
+  /what makes/,
+  /more details/,
+  /listing title/,
+  /item title/,
+  /\bvin\b/,
+  /vehicle identification/,
+];
+
+function markIfPresent(mark, key, packHas, ok) {
+  if (!packHas) return;
+  mark(key, ok);
+}
+
+async function fillPackOnce(pack) {
+  const p = pack || {};
+  const listing = listingFromPack(p);
   const filled = [];
   const missed = [];
   const mark = (key, ok) => (ok ? filled : missed).push(key);
   const modelLine = listing.modelLine || "";
 
+  const yearVal = isBlankPackValue(p.year) ? "" : String(p.year).trim();
+  markIfPresent(
+    mark,
+    "year",
+    Boolean(yearVal),
+    await fillChoice([/^year$/, /\byear\b/], yearVal, [...CHOICE_EXCLUDE, /\bmake\b/, /\bmodel\b/])
+  );
+  if (yearVal) await delay(200);
+
+  const makeVal = isBlankPackValue(p.make) ? "" : String(p.make).trim();
+  markIfPresent(
+    mark,
+    "make",
+    Boolean(makeVal),
+    await fillChoice([/^make$/, /\bmake\b/, /manufacturer/], makeVal, [...CHOICE_EXCLUDE, /\byear\b/, /\bmodel\b/])
+  );
+  if (makeVal) await delay(150);
+
   mark(
     "model",
+    fillText([/^model$/, /\bvehicle model\b/, /\bmodel\b/], modelLine, MODEL_EXCLUDE, "single")
+  );
+
+  const price = priceDigits(p);
+  markIfPresent(
+    mark,
+    "price",
+    Boolean(price),
     fillText(
-      [/^model$/, /\bvehicle model\b/, /\bmodel\b/],
-      modelLine,
-      [
-        /description/,
-        /\byear\b/,
-        /\bmake\b/,
-        /\bmileage\b/,
-        /\bodometer\b/,
-        /\bvin\b/,
-        /vehicle identification/,
-        /more details/,
-        /clean title/,
-        /title status/,
-        /listing title/,
-        /item title/,
-      ],
+      [/^price$/, /\bprice\b/, /asking price/, /listing price/],
+      price,
+      [/mileage/, /odometer/, /description/, /\bmodel\b/, /year/, /make/, /\bvin\b/],
       "single"
     )
   );
@@ -825,7 +1087,7 @@ function fillPackOnce(pack) {
     modelLine,
     title: listing.title,
     descriptionHit: desc.via || "",
-    notes: "Model + description + photos. You hit Post.",
+    notes: "Year/Make/Price + Model + description + photos. You hit Post.",
   };
 }
 
@@ -842,16 +1104,17 @@ function mergePhotoResult(textResult, photoResult) {
     filled: [...new Set(filled)],
     missed: [...new Set(missed)],
     photos,
-    notes: "Model + description + photos. You hit Post.",
+    notes: "Year/Make/Price + Model + description + photos. You hit Post.",
   };
 }
 
 async function fillPack(pack) {
-  let textResult = fillPackOnce(pack);
-  if (textResult.missed.includes("description")) {
+  let textResult = await fillPackOnce(pack);
+  const retryKeys = ["description", "year", "make", "price", "model"].filter((k) => textResult.missed.includes(k));
+  if (retryKeys.length) {
     revealDescriptionArea();
     await delay(280);
-    textResult = fillPackOnce(pack);
+    textResult = await fillPackOnce(pack);
   }
   const photoResult = await fillPhotos(pack || {});
   return mergePhotoResult(textResult, photoResult);

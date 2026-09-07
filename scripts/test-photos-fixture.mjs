@@ -112,11 +112,19 @@ try {
   assert.equal(report.neverPosted, true);
   assert.equal(report.photosOk, true);
   assert.equal(report.photoCount, 2);
-  assert.ok(report.filled.includes("model"));
-  assert.ok(report.filled.includes("description"));
-  assert.ok(report.filled.includes("photos"));
-  assert.equal(report.stripOk, true);
-  assert.equal(report.extractedOk, true);
+assert.ok(report.filled.includes("year"));
+assert.ok(report.filled.includes("make"));
+assert.ok(report.filled.includes("price"));
+assert.ok(report.filled.includes("model"));
+assert.ok(report.filled.includes("description"));
+assert.ok(report.filled.includes("photos"));
+assert.ok(!report.filled.includes("vin"));
+assert.equal(report.yearOk, true);
+assert.equal(report.makeOk, true);
+assert.equal(report.priceOk, true);
+assert.equal(report.vinOk, true);
+assert.equal(report.stripOk, true);
+assert.equal(report.extractedOk, true);
 
   console.log(
     `photos fixture: ${report.photoCount} files · strip ${report.stripInH}→${report.stripOutH} · filled ${report.filled.join(", ")}`

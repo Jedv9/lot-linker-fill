@@ -6,8 +6,12 @@
   <style>
     body { font: 14px/1.4 system-ui, sans-serif; max-width: 760px; margin: 24px auto; color: #0f172a; }
     label { display: block; font-weight: 600; margin: 12px 0 4px; }
-    input, textarea, [contenteditable] { width: 100%; box-sizing: border-box; padding: 8px; font: inherit; }
+    input, textarea, [contenteditable], [role=combobox] { width: 100%; box-sizing: border-box; padding: 8px; font: inherit; }
     [contenteditable] { min-height: 220px; border: 1px solid #94a3b8; white-space: pre-wrap; }
+    [role=combobox] { border: 1px solid #94a3b8; min-height: 38px; background: #fff; cursor: pointer; }
+    [role=listbox] { border: 1px solid #cbd5e1; margin: 0 0 8px; }
+    [role=option] { padding: 6px 8px; cursor: pointer; }
+    [role=option]:hover { background: #e2e8f0; }
     .row { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
     button { padding: 8px 12px; font-weight: 600; }
     #status { color: #0369a1; min-height: 1.2em; }
@@ -17,12 +21,11 @@
     .below-fold { height: 1400px; }
     .fb-composer { margin: 12px 0; }
     .fb-composer .hint { display: block; font-weight: 600; margin-bottom: 8px; }
-    .fb-composer .wrap { padding: 4px 0; }
   </style>
 </head>
 <body>
   <h1>Marketplace vehicle create listing (fixture)</h1>
-  <p class="warn">Uses the real content-script fill. Only Model and Description should change. Year, Make, and Mileage must stay put.</p>
+  <p class="warn">Fill Year (combobox), Make (combobox), Price (digits), Model title line, Description. Never VIN. Never Post.</p>
   <div class="row">
     <button id="fillRaptor" type="button">Fill Ford PU1392</button>
     <button id="fillNissan" type="button">Fill Nissan 26NU0143</button>
@@ -31,11 +34,11 @@
 
   <div class="fb-field">
     <span>Year</span>
-    <input id="year" aria-label="Year" value="2012" />
+    <div id="year" role="combobox" aria-label="Year" aria-haspopup="listbox" tabindex="0"></div>
   </div>
   <div class="fb-field">
     <span>Make</span>
-    <input id="make" aria-label="Make" value="Ford" />
+    <div id="make" role="combobox" aria-label="Make" aria-haspopup="listbox" tabindex="0"></div>
   </div>
   <div class="fb-field">
     <label>
@@ -44,15 +47,22 @@
     </label>
   </div>
   <div class="fb-field">
+    <span>Price</span>
+    <input id="price" aria-label="Price" inputmode="numeric" />
+  </div>
+  <div class="fb-field">
     <span>Mileage</span>
     <input id="mileage" aria-label="Mileage" value="87000" />
+  </div>
+  <div class="fb-field">
+    <span>VIN</span>
+    <input id="vin" aria-label="VIN" value="DO-NOT-TOUCH" />
   </div>
   <div class="fb-field">
     <span>Title status</span>
     <input id="title-status" aria-label="Title status" value="Clean" />
   </div>
 
-  <!-- FB vehicle create: Description sits below the fold; aria-label is on the wrapper, not the editor. -->
   <div class="below-fold" aria-hidden="true"></div>
   <div class="fb-composer" id="desc-host">
     <span class="hint">Tell buyers about your vehicle</span>
@@ -75,6 +85,31 @@
   <script src="../photos.js"></script>
   <script src="../content-fb.js"></script>
   <script>
+    function wireCombo(id, options) {
+      const box = document.getElementById(id);
+      const list = document.createElement("div");
+      list.setAttribute("role", "listbox");
+      list.hidden = true;
+      options.forEach((v) => {
+        const o = document.createElement("div");
+        o.setAttribute("role", "option");
+        o.textContent = v;
+        o.addEventListener("click", (e) => {
+          e.stopPropagation();
+          box.textContent = v;
+          box.dataset.value = v;
+          list.hidden = true;
+        });
+        list.appendChild(o);
+      });
+      box.after(list);
+      box.addEventListener("click", () => {
+        list.hidden = !list.hidden;
+      });
+    }
+    wireCombo("year", ["2012", "2026", "2016"]);
+    wireCombo("make", ["Ford", "Nissan", "Hyundai"]);
+
     function descEl() {
       return document.querySelector('[data-lot="description"]');
     }
@@ -82,20 +117,26 @@
     function snapshot() {
       const d = descEl();
       return {
-        year: document.getElementById("year").value,
-        make: document.getElementById("make").value,
+        year: document.getElementById("year").textContent.trim(),
+        make: document.getElementById("make").textContent.trim(),
         model: document.getElementById("model").value,
+        price: document.getElementById("price").value,
         mileage: document.getElementById("mileage").value,
+        vin: document.getElementById("vin").value,
         titleStatus: document.getElementById("title-status").value,
         description: (d && (d.innerText || d.textContent)) || "",
       };
     }
 
-    function resetForm(year, make, mileage) {
-      document.getElementById("year").value = year;
-      document.getElementById("make").value = make;
+    function resetForm(mileage) {
+      document.getElementById("year").textContent = "";
+      document.getElementById("year").dataset.value = "";
+      document.getElementById("make").textContent = "";
+      document.getElementById("make").dataset.value = "";
       document.getElementById("model").value = "";
+      document.getElementById("price").value = "";
       document.getElementById("mileage").value = mileage;
+      document.getElementById("vin").value = "DO-NOT-TOUCH";
       document.getElementById("title-status").value = "Clean";
       const d = descEl();
       if (d) {
@@ -105,29 +146,30 @@
     }
 
     async function runFill(pack, label, preset) {
-      resetForm(preset.year, preset.make, preset.mileage);
+      resetForm(preset.mileage);
       const result = await LotLinkerFill.fillPack(pack);
       const fields = snapshot();
       const listing = LotLinkerListing.packToListing(pack);
-      const protectedOk =
-        fields.year === preset.year &&
-        fields.make === preset.make &&
-        fields.mileage === preset.mileage &&
-        fields.titleStatus === "Clean";
+      const yearOk = fields.year === pack.year && result.filled.includes("year");
+      const makeOk = fields.make === pack.make && result.filled.includes("make");
+      const priceOk = fields.price === String(pack.price) && result.filled.includes("price");
+      const vinOk = fields.vin === "DO-NOT-TOUCH" && !result.filled.includes("vin");
+      const mileageOk = fields.mileage === preset.mileage;
+      const titleOk = fields.titleStatus === "Clean";
       const modelOk = fields.model === listing.modelLine && !/^20\d{2}\b/.test(fields.model) && !/Ford|Nissan|Hyundai/i.test(fields.model.split(" | ")[0] || "");
       const descOk = fields.description.includes("Wisconsin shoppers") && /\n/.test(fields.description);
-      const keysOk = result.filled.includes("model") && result.filled.includes("description") && !result.missed.length;
+      const keysOk = ["year", "make", "price", "model", "description"].every((k) => result.filled.includes(k)) && !result.missed.length;
       const hitOk = Boolean(result.descriptionHit);
-      const ok = protectedOk && modelOk && descOk && keysOk && hitOk;
+      const ok = yearOk && makeOk && priceOk && vinOk && mileageOk && titleOk && modelOk && descOk && keysOk && hitOk;
       document.getElementById("status").textContent =
         `${label}: filled ${result.filled.join(", ") || "none"} · missed ${result.missed.join(", ") || "none"} · via ${result.descriptionHit || "?"} · ${ok ? "PASS" : "FAIL"}`;
       return { label, ok, result, fields, listing };
     }
 
-    const raptor = {"stock":"PU1392","year":"2012","make":"Ford","model":"F-150","trim":"SVT Raptor","bodyStyle":"Crew Cab 4D","mileage":"87000","condition":"USED","drivetrain":"4WD","price":"26900","rooftop":"Lake Country Nissan","body":"USED 2012 Ford F-150 SVT Raptor · 4WD. Located at Lake Country Nissan. Stock PU1392, 87,000 miles. Standouts: Heated Seats · Backup Camera · 4WD."};
-    const nissan = {"stock":"26NU0143","year":"2026","make":"Nissan","model":"Altima","trim":"2.5 SR","bodyStyle":"Sedan 4D","mileage":"0","condition":"NEW","drivetrain":"AWD","price":"30470","rooftop":"Lake Country Nissan","body":"NEW 2026 Nissan Altima 2.5 SR · AWD. Located at Lake Country Nissan, N48W36216 E Wisconsin Ave, Oconomowoc. Stock 26NU0143. Standouts: Blind Spot Monitor · Lane Departure Warning · Parking Sensors / Assist · Forward Collision Warning · Bluetooth · Power Blue Seats. Also: Android Auto, Apple CarPlay, leatherette seats, Satellite Radio Ready. Price does not include tax, title, registration, and service fees. Call (262) 522-7200 and ask for Jed."};
-    document.getElementById("fillRaptor").onclick = () => runFill(raptor, "Raptor", { year: "2012", make: "Ford", mileage: "87000" });
-    document.getElementById("fillNissan").onclick = () => runFill(nissan, "Nissan", { year: "2026", make: "Nissan", mileage: "0" });
+    const raptor = {"stock":"PU1392","year":"2012","make":"Ford","model":"F-150","trim":"SVT Raptor","bodyStyle":"Crew Cab 4D","mileage":"87000","vin":"1FTWX1R64CFA00000","condition":"USED","drivetrain":"4WD","price":"26900","rooftop":"Lake Country Nissan","body":"USED 2012 Ford F-150 SVT Raptor · 4WD. Located at Lake Country Nissan. Stock PU1392, 87,000 miles. Standouts: Heated Seats · Backup Camera · 4WD."};
+    const nissan = {"stock":"26NU0143","year":"2026","make":"Nissan","model":"Altima","trim":"2.5 SR","bodyStyle":"Sedan 4D","mileage":"0","vin":"1N4BL4CW4TN327585","condition":"NEW","drivetrain":"AWD","price":"30470","rooftop":"Lake Country Nissan","body":"NEW 2026 Nissan Altima 2.5 SR · AWD. Located at Lake Country Nissan, N48W36216 E Wisconsin Ave, Oconomowoc. Stock 26NU0143. Standouts: Blind Spot Monitor · Lane Departure Warning · Parking Sensors / Assist · Forward Collision Warning · Bluetooth · Power Blue Seats. Also: Android Auto, Apple CarPlay, leatherette seats, Satellite Radio Ready. Price does not include tax, title, registration, and service fees. Call (262) 522-7200 and ask for Jed."};
+    document.getElementById("fillRaptor").onclick = () => runFill(raptor, "Raptor", { mileage: "87000" });
+    document.getElementById("fillNissan").onclick = () => runFill(nissan, "Nissan", { mileage: "0" });
 
     function writeReport(report) {
       window.__lotLinkerReport = report;
@@ -141,7 +183,9 @@
         modelLine: r.listing.modelLine,
         year: r.fields.year,
         make: r.fields.make,
+        price: r.fields.price,
         mileage: r.fields.mileage,
+        vin: r.fields.vin,
         titleStatus: r.fields.titleStatus,
         descriptionHasNewlines: /\n/.test(r.fields.description),
         descriptionFilled: r.result.filled.includes("description") && !r.result.missed.includes("description"),
@@ -152,12 +196,12 @@
     (async () => {
       const want = new URLSearchParams(location.search).get("pack");
       const report = want === "nissan"
-        ? [await runFill(nissan, "Nissan", { year: "2026", make: "Nissan", mileage: "0" })]
+        ? [await runFill(nissan, "Nissan", { mileage: "0" })]
         : want === "raptor"
-          ? [await runFill(raptor, "Raptor", { year: "2012", make: "Ford", mileage: "87000" })]
+          ? [await runFill(raptor, "Raptor", { mileage: "87000" })]
           : [
-              await runFill(raptor, "Raptor", { year: "2012", make: "Ford", mileage: "87000" }),
-              await runFill(nissan, "Nissan", { year: "2026", make: "Nissan", mileage: "0" }),
+              await runFill(raptor, "Raptor", { mileage: "87000" }),
+              await runFill(nissan, "Nissan", { mileage: "0" }),
             ];
       writeReport(report);
     })();

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Lot Linker Fill",
-  "version": "2.2.0",
-  "description": "Fill Marketplace vehicle Model + description + photos from stock. You hit Post.",
+  "version": "2.2.1",
+  "description": "Fill Marketplace Year, Make, Price, Model, description, and photos from stock. You hit Post.",
   "action": {
     "default_popup": "popup.html",
     "default_title": "Lot Linker Fill",
