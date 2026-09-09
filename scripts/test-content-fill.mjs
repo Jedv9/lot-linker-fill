@@ -12,7 +12,7 @@ const manifest = JSON.parse(readFileSync(new URL("../manifest.json", import.meta
 const background = readFileSync(new URL("../background.js", import.meta.url), "utf8");
 const zipBuild = readFileSync(new URL("./build-zip.sh", import.meta.url), "utf8");
 
-assert.equal(manifest.version, "2.3.1");
+assert.equal(manifest.version, "2.3.2");
 assert.deepEqual(manifest.content_scripts[0].js, ["listing-copy.js", "photos.js", "posted.js", "content-fb.js"]);
 assert.equal(manifest.background.service_worker, "background.js");
 assert.ok(manifest.permissions.includes("downloads"), "fallback save uses chrome.downloads");
@@ -65,6 +65,12 @@ assert.match(content, /\\bdescribe\\b/);
 assert.match(content, /beforeinput/);
 assert.match(content, /descriptionHit/);
 assert.match(content, /findDescriptionField/);
+assert.match(content, /findChoiceByNearbyLabel/);
+assert.match(content, /isExcludedLabel/);
+assert.match(content, /typeIntoOpenChoice/);
+assert.match(content, /body type/);
+assert.match(content, /vehicle year/);
+assert.match(content, /\["sport"/);
 assert.match(content, /delay\(280\)|280\)/);
 assert.match(content, /findPhotoFileInput/);
 assert.match(content, /DataTransfer/);

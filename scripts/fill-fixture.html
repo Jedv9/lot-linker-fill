@@ -38,44 +38,58 @@
     <span>Vehicle type</span>
     <div id="vehicle-type" role="combobox" aria-label="Vehicle type" aria-haspopup="listbox" tabindex="0"></div>
   </div>
-  <div class="fb-field">
-    <span>Year</span>
-    <div id="year" role="combobox" aria-label="Year" aria-haspopup="listbox" tabindex="0"></div>
-  </div>
-  <div class="fb-field">
-    <span>Make</span>
-    <div id="make" role="combobox" aria-label="Make" aria-haspopup="listbox" tabindex="0"></div>
-  </div>
-  <div class="fb-field">
-    <label>
-      <span>Model</span>
-      <input id="model" />
-    </label>
-  </div>
-  <div class="fb-field">
-    <span>Price</span>
-    <input id="price" aria-label="Price" inputmode="numeric" />
-  </div>
-  <div class="fb-field">
-    <span>Mileage</span>
-    <input id="mileage" aria-label="Mileage" value="87000" />
-  </div>
-  <div class="fb-field">
-    <span>Body style</span>
-    <div id="body-style" role="combobox" aria-label="Body style" aria-haspopup="listbox" tabindex="0"></div>
-  </div>
-  <div class="fb-field">
-    <span>Exterior color</span>
-    <div id="exterior" role="combobox" aria-label="Exterior color" aria-haspopup="listbox" tabindex="0"></div>
-  </div>
-  <div class="fb-field">
-    <span>Interior color</span>
-    <div id="interior" role="combobox" aria-label="Interior color" aria-haspopup="listbox" tabindex="0"></div>
-  </div>
-  <div class="fb-field">
-    <span>Fuel type</span>
-    <div id="fuel" role="combobox" aria-label="Fuel type" aria-haspopup="listbox" tabindex="0"></div>
-  </div>
+  <!-- FB vehicle create: Year / body / colors often have no aria-label. The name is
+       placeholder text inside the combobox plus a sibling label. A wrapper aria-label
+       lists several fields together ("Year, make, model, body style…"), which used to
+       make exclude-lists skip Year / Body style / Exterior / Interior. -->
+  <section class="fb-specs" aria-label="Year, make, model, body style, exterior color, interior color, and fuel">
+    <div class="fb-field">
+      <span>Year</span>
+      <div class="fb-combo-wrap">
+        <div data-lot="year" role="combobox" aria-haspopup="listbox" tabindex="0">Year</div>
+      </div>
+    </div>
+    <div class="fb-field">
+      <span>Make</span>
+      <div id="make" role="combobox" aria-label="Make" aria-haspopup="listbox" tabindex="0"></div>
+    </div>
+    <div class="fb-field">
+      <label>
+        <span>Model</span>
+        <input id="model" />
+      </label>
+    </div>
+    <div class="fb-field">
+      <span>Price</span>
+      <input id="price" aria-label="Price" inputmode="numeric" />
+    </div>
+    <div class="fb-field">
+      <span>Mileage</span>
+      <input id="mileage" aria-label="Mileage" value="87000" />
+    </div>
+    <div class="fb-field">
+      <span>Body style</span>
+      <div class="fb-combo-wrap">
+        <div data-lot="body-style" role="combobox" aria-haspopup="listbox" tabindex="0">Body style</div>
+      </div>
+    </div>
+    <div class="fb-field">
+      <span>Exterior color</span>
+      <div class="fb-combo-wrap">
+        <div data-lot="exterior" role="combobox" aria-haspopup="listbox" tabindex="0">Exterior color</div>
+      </div>
+    </div>
+    <div class="fb-field">
+      <span>Interior color</span>
+      <div class="fb-combo-wrap">
+        <div data-lot="interior" role="combobox" aria-haspopup="listbox" tabindex="0">Interior color</div>
+      </div>
+    </div>
+    <div class="fb-field">
+      <span>Fuel type</span>
+      <div id="fuel" role="combobox" aria-label="Fuel type" aria-haspopup="listbox" tabindex="0"></div>
+    </div>
+  </section>
   <div class="fb-field">
     <span>VIN</span>
     <input id="vin" aria-label="VIN" value="DO-NOT-TOUCH" />
@@ -114,8 +128,11 @@
   <script src="../photos.js"></script>
   <script src="../content-fb.js"></script>
   <script>
-    function wireCombo(id, options) {
-      const box = document.getElementById(id);
+    function lot(name) {
+      return document.querySelector(`[data-lot="${name}"]`) || document.getElementById(name);
+    }
+
+    function wireCombo(box, options) {
       const list = document.createElement("div");
       list.setAttribute("role", "listbox");
       list.hidden = true;
@@ -136,13 +153,57 @@
         list.hidden = !list.hidden;
       });
     }
-    wireCombo("vehicle-type", ["Car/Truck", "Boat", "Motorcycle"]);
-    wireCombo("year", ["2012", "2026", "2016"]);
-    wireCombo("make", ["Ford", "Nissan", "Hyundai"]);
-    wireCombo("body-style", ["Sedan", "SUV", "Truck", "Hatchback", "Coupe", "Minivan", "Wagon"]);
-    wireCombo("exterior", ["Black", "Blue", "Grey", "Gray", "Silver", "White", "Red"]);
-    wireCombo("interior", ["Black", "Grey", "Gray", "Tan", "Beige"]);
-    wireCombo("fuel", ["Gasoline", "Diesel", "Electric", "Hybrid"]);
+
+    function wireYearTypeahead(box, years) {
+      const list = document.createElement("div");
+      list.setAttribute("role", "listbox");
+      list.hidden = true;
+      const input = document.createElement("input");
+      input.className = "fb-typeahead";
+      input.setAttribute("aria-autocomplete", "list");
+      input.hidden = true;
+      function render(filter) {
+        list.innerHTML = "";
+        const q = String(filter || "").toLowerCase();
+        const matched = q
+          ? years.filter((v) => String(v).toLowerCase().startsWith(q))
+          : years;
+        const shown = q ? matched : matched.slice(0, 10);
+        shown.forEach((v) => {
+          const o = document.createElement("div");
+          o.setAttribute("role", "option");
+          o.textContent = v;
+          o.addEventListener("click", (e) => {
+            e.stopPropagation();
+            box.textContent = v;
+            box.dataset.value = v;
+            list.hidden = true;
+            input.hidden = true;
+            input.value = "";
+          });
+          list.appendChild(o);
+        });
+        list.hidden = false;
+      }
+      box.after(list);
+      box.after(input);
+      box.addEventListener("click", () => {
+        input.hidden = false;
+        input.focus();
+        render(input.value);
+      });
+      input.addEventListener("input", () => render(input.value));
+    }
+
+    const years = [];
+    for (let y = 2027; y >= 1990; y--) years.push(String(y));
+    wireCombo(document.getElementById("vehicle-type"), ["Car/Truck", "Boat", "Motorcycle"]);
+    wireYearTypeahead(lot("year"), years);
+    wireCombo(document.getElementById("make"), ["Ford", "Nissan", "Hyundai"]);
+    wireCombo(lot("body-style"), ["Sedan", "SUV", "Truck", "Pickup", "Hatchback", "Coupe", "Minivan", "Wagon"]);
+    wireCombo(lot("exterior"), ["Black", "Blue", "Grey", "Gray", "Silver", "White", "Red"]);
+    wireCombo(lot("interior"), ["Black", "Charcoal", "Grey", "Gray", "Tan", "Beige"]);
+    wireCombo(document.getElementById("fuel"), ["Gasoline", "Diesel", "Electric", "Hybrid"]);
 
     function descEl() {
       return document.querySelector('[data-lot="description"]');
@@ -152,14 +213,14 @@
       const d = descEl();
       return {
         vehicleType: document.getElementById("vehicle-type").textContent.trim(),
-        year: document.getElementById("year").textContent.trim(),
+        year: lot("year").textContent.trim(),
         make: document.getElementById("make").textContent.trim(),
         model: document.getElementById("model").value,
         price: document.getElementById("price").value,
         mileage: document.getElementById("mileage").value,
-        bodyStyle: document.getElementById("body-style").textContent.trim(),
-        exterior: document.getElementById("exterior").textContent.trim(),
-        interior: document.getElementById("interior").textContent.trim(),
+        bodyStyle: lot("body-style").textContent.trim(),
+        exterior: lot("exterior").textContent.trim(),
+        interior: lot("interior").textContent.trim(),
         fuel: document.getElementById("fuel").textContent.trim(),
         vin: document.getElementById("vin").value,
         titleStatus: document.getElementById("title-status").value,
@@ -172,17 +233,21 @@
     function resetForm(mileage) {
       document.getElementById("vehicle-type").textContent = "";
       document.getElementById("vehicle-type").dataset.value = "";
-      document.getElementById("year").textContent = "";
-      document.getElementById("year").dataset.value = "";
+      lot("year").textContent = "Year";
+      lot("year").dataset.value = "";
       document.getElementById("make").textContent = "";
       document.getElementById("make").dataset.value = "";
       document.getElementById("model").value = "";
       document.getElementById("price").value = "";
       document.getElementById("mileage").value = mileage;
-      for (const id of ["body-style", "exterior", "interior", "fuel"]) {
-        document.getElementById(id).textContent = "";
-        document.getElementById(id).dataset.value = "";
-      }
+      lot("body-style").textContent = "Body style";
+      lot("body-style").dataset.value = "";
+      lot("exterior").textContent = "Exterior color";
+      lot("exterior").dataset.value = "";
+      lot("interior").textContent = "Interior color";
+      lot("interior").dataset.value = "";
+      document.getElementById("fuel").textContent = "";
+      document.getElementById("fuel").dataset.value = "";
       document.getElementById("vin").value = "DO-NOT-TOUCH";
       document.getElementById("title-status").value = "Clean";
       document.getElementById("clean-title").checked = false;
@@ -211,9 +276,12 @@
       const modelOk = fields.model === listing.modelLine && !/^20\d{2}\b/.test(fields.model) && !/Ford|Nissan|Hyundai/i.test(fields.model.split(" | ")[0] || "");
       const descOk = fields.description.includes("Wisconsin shoppers") && /\n/.test(fields.description);
       const typeOk = fields.vehicleType === "Car/Truck" && result.filled.includes("vehicleType");
-      const keysOk = ["vehicleType", "year", "make", "price", "model", "description", "mileage"].every((k) => result.filled.includes(k)) && !result.missed.length && !result.filled.includes("vin") && !result.filled.includes("condition");
+      const bodyOk = Boolean(fields.bodyStyle) && fields.bodyStyle !== "Body style" && result.filled.includes("bodyStyle");
+      const exteriorOk = Boolean(fields.exterior) && fields.exterior !== "Exterior color" && result.filled.includes("exterior");
+      const interiorOk = Boolean(fields.interior) && fields.interior !== "Interior color" && result.filled.includes("interior");
+      const keysOk = ["vehicleType", "year", "make", "price", "model", "description", "mileage", "bodyStyle", "exterior", "interior"].every((k) => result.filled.includes(k)) && !result.missed.length && !result.filled.includes("vin") && !result.filled.includes("condition");
       const hitOk = Boolean(result.descriptionHit);
-      const ok = typeOk && yearOk && makeOk && priceOk && vinOk && mileageOk && titleOk && modelOk && descOk && keysOk && hitOk;
+      const ok = typeOk && yearOk && makeOk && priceOk && vinOk && mileageOk && titleOk && modelOk && descOk && bodyOk && exteriorOk && interiorOk && keysOk && hitOk;
       document.getElementById("status").textContent =
         `${label}: filled ${result.filled.join(", ") || "none"} · missed ${result.missed.join(", ") || "none"} · via ${result.descriptionHit || "?"} · ${ok ? "PASS" : "FAIL"}`;
       return { label, ok, result, fields, listing };

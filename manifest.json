@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Lot Linker Fill",
-  "version": "2.3.1",
+  "version": "2.3.2",
   "description": "Fill Marketplace Vehicle type (Car/Truck) first, then Year, Make, Price, Mileage, body, colors, fuel, Model, description, photos. Track posted vs not posted by stock. Never VIN. You hit Post.",
   "action": {
     "default_popup": "popup.html",
