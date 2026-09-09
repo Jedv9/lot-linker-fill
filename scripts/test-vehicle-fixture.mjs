@@ -9,11 +9,11 @@ const chrome = spawnSync(
     "--disable-gpu",
     "--no-sandbox",
     "--disable-dev-shm-usage",
-    "--virtual-time-budget=25000",
+    "--virtual-time-budget=40000",
     "--dump-dom",
     fixture.href,
   ],
-  { encoding: "utf8", timeout: 45000, maxBuffer: 20 * 1024 * 1024 }
+  { encoding: "utf8", timeout: 90000, maxBuffer: 20 * 1024 * 1024 }
 );
 
 assert.equal(chrome.status, 0, `chrome failed: ${chrome.stderr || chrome.stdout.slice(0, 500)}`);
@@ -64,9 +64,18 @@ for (const row of report) {
     assert.equal(row.price, "30470");
     assert.equal(row.mileage, "300");
     assert.equal(row.bodyStyle, "Sedan");
-    assert.ok(["Grey", "Gray"].includes(row.exterior), `${row.label} exterior ${row.exterior}`);
-    assert.ok(["Black", "Charcoal", "Grey", "Gray"].includes(row.interior), `${row.label} interior ${row.interior}`);
+    assert.equal(row.exterior, "Gray");
+    assert.equal(row.interior, "Black");
     assert.equal(row.fuel, "Gasoline");
+  }
+  if (row.label === "Year2027") {
+    assert.equal(row.year, "2026");
+    assert.equal(row.make, "Hyundai");
+    assert.equal(row.bodyStyle, "SUV");
+    assert.equal(row.exterior, "Green");
+    assert.equal(row.interior, "Tan");
+    assert.equal(row.fuel, "Electric");
+    assert.equal(row.mileage, "300");
   }
   if (row.label === "LowMiles") {
     assert.equal(row.mileage, "300");

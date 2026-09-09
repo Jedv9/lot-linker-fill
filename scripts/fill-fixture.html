@@ -132,7 +132,7 @@
       return document.querySelector(`[data-lot="${name}"]`) || document.getElementById(name);
     }
 
-    function wireCombo(box, options) {
+    function wireCombo(box, options, { delayMs = 0 } = {}) {
       const list = document.createElement("div");
       list.setAttribute("role", "listbox");
       list.hidden = true;
@@ -150,7 +150,21 @@
       });
       box.after(list);
       box.addEventListener("click", () => {
-        list.hidden = !list.hidden;
+        if (!list.hidden) {
+          list.hidden = true;
+          return;
+        }
+        if (!delayMs) {
+          list.hidden = false;
+          return;
+        }
+        list.hidden = true;
+        setTimeout(() => {
+          list.hidden = false;
+        }, delayMs);
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") list.hidden = true;
       });
     }
 
@@ -193,16 +207,22 @@
         render(input.value);
       });
       input.addEventListener("input", () => render(input.value));
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          list.hidden = true;
+          input.hidden = true;
+        }
+      });
     }
 
     const years = [];
-    for (let y = 2027; y >= 1990; y--) years.push(String(y));
+    for (let y = 2026; y >= 1990; y--) years.push(String(y));
     wireCombo(document.getElementById("vehicle-type"), ["Car/Truck", "Boat", "Motorcycle"]);
     wireYearTypeahead(lot("year"), years);
     wireCombo(document.getElementById("make"), ["Ford", "Nissan", "Hyundai"]);
-    wireCombo(lot("body-style"), ["Sedan", "SUV", "Truck", "Pickup", "Hatchback", "Coupe", "Minivan", "Wagon"]);
-    wireCombo(lot("exterior"), ["Black", "Blue", "Grey", "Gray", "Silver", "White", "Red"]);
-    wireCombo(lot("interior"), ["Black", "Charcoal", "Grey", "Gray", "Tan", "Beige"]);
+    wireCombo(lot("body-style"), ["Sedan", "SUV", "Truck", "Pickup", "Hatchback", "Coupe", "Minivan", "Wagon"], { delayMs: 220 });
+    wireCombo(lot("exterior"), ["Black", "Blue", "Grey", "Gray", "Silver", "White", "Red", "Green"], { delayMs: 220 });
+    wireCombo(lot("interior"), ["Black", "Charcoal", "Grey", "Gray", "Tan", "Beige"], { delayMs: 220 });
     wireCombo(document.getElementById("fuel"), ["Gasoline", "Diesel", "Electric", "Hybrid"]);
 
     function descEl() {
@@ -264,7 +284,11 @@
       const result = await LotLinkerFill.fillPack(pack);
       const fields = snapshot();
       const listing = LotLinkerListing.packToListing(pack);
-      const yearOk = fields.year === pack.year && result.filled.includes("year");
+      const yearOk =
+        result.filled.includes("year") &&
+        Boolean(fields.year) &&
+        fields.year !== "Year" &&
+        (fields.year === String(pack.year) || Math.abs(Number(fields.year) - Number(pack.year)) <= 1);
       const makeOk = fields.make === pack.make && result.filled.includes("make");
       const priceOk = fields.price === String(pack.price) && result.filled.includes("price");
       const vinOk = fields.vin === "DO-NOT-TOUCH" && !result.filled.includes("vin");
@@ -288,7 +312,8 @@
     }
 
     const raptor = {"stock":"PU1392","year":"2012","make":"Ford","model":"F-150","trim":"SVT Raptor","bodyStyle":"Crew Cab 4D","mileage":"87000","vin":"1FTWX1R64CFA00000","condition":"USED","exterior":"Black","interior":"Black","fuel":"Gasoline","drivetrain":"4WD","price":"26900","rooftop":"Lake Country Nissan","body":"USED 2012 Ford F-150 SVT Raptor · 4WD. Located at Lake Country Nissan. Stock PU1392, 87,000 miles. Standouts: Heated Seats · Backup Camera · 4WD."};
-    const nissan = {"stock":"26NU0143","year":"2026","make":"Nissan","model":"Altima","trim":"2.5 SR","bodyStyle":"Sedan 4D","mileage":"0","vin":"1N4BL4CW4TN327585","condition":"NEW","exterior":"Gray Sky Pearl","interior":"Sport","fuel":"Gasoline","drivetrain":"AWD","price":"30470","rooftop":"Lake Country Nissan","body":"NEW 2026 Nissan Altima 2.5 SR · AWD. Located at Lake Country Nissan, N48W36216 E Wisconsin Ave, Oconomowoc. Stock 26NU0143. Standouts: Blind Spot Monitor · Lane Departure Warning · Parking Sensors / Assist · Forward Collision Warning · Bluetooth · Power Blue Seats. Also: Android Auto, Apple CarPlay, leatherette seats, Satellite Radio Ready. Price does not include tax, title, registration, and service fees. Call (262) 522-7200 and ask for Jed."};
+    const nissan = {"stock":"26NU0143","year":"2026","make":"Nissan","model":"Altima","trim":"2.5 SR","bodyStyle":"Sedan 4D","mileage":"0","vin":"1N4BL4CW4TN327585","condition":"NEW","exterior":"Gray Sky Pearl","exteriorFb":"Gray","interior":"Sport","interiorFb":"Black","fuel":"Gasoline","drivetrain":"AWD","price":"30470","rooftop":"Lake Country Nissan","body":"NEW 2026 Nissan Altima 2.5 SR · AWD. Located at Lake Country Nissan, N48W36216 E Wisconsin Ave, Oconomowoc. Stock 26NU0143. Standouts: Blind Spot Monitor · Lane Departure Warning · Parking Sensors / Assist · Forward Collision Warning · Bluetooth · Power Blue Seats. Also: Android Auto, Apple CarPlay, leatherette seats, Satellite Radio Ready. Price does not include tax, title, registration, and service fees. Call (262) 522-7200 and ask for Jed."};
+    const year2027 = {"stock":"27TEST","year":"2027","make":"Hyundai","model":"IONIQ 5","trim":"SEL","bodyStyle":"Sport Utility 4D","mileage":"0","vin":"7YAKNDDC4VY000000","condition":"NEW","exterior":"Cyber Lime","exteriorFb":"Green","interior":"UnknownCloth","interiorFb":"Tan","fuel":"Electric","drivetrain":"AWD","price":"46740","rooftop":"Lake Country Hyundai","body":"NEW 2027 Hyundai IONIQ 5 SEL · AWD. Located at Lake Country Hyundai. Stock 27TEST. Standouts: Heated Seats · Apple CarPlay · Blind Spot Monitor."};
     const lowMiles = {"stock":"TEST50","year":"2016","make":"Hyundai","model":"Elantra","trim":"SE","bodyStyle":"Sedan 4D","mileage":"50","vin":"KMHD84LF0GU000050","condition":"USED","exterior":"White","interior":"Black","fuel":"Gasoline","drivetrain":"FWD","price":"12995","rooftop":"Lake Country Hyundai","body":"USED 2016 Hyundai Elantra SE · FWD. Located at Lake Country Hyundai. Stock TEST50, 50 miles. Standouts: Bluetooth."};
     const midMiles = {"stock":"TEST12K","year":"2016","make":"Hyundai","model":"Elantra","trim":"SE","bodyStyle":"Sedan 4D","mileage":"12000","vin":"KMHD84LF0GU012000","condition":"USED","exterior":"White","interior":"Black","fuel":"Gasoline","drivetrain":"FWD","price":"12995","rooftop":"Lake Country Hyundai","body":"USED 2016 Hyundai Elantra SE · FWD. Located at Lake Country Hyundai. Stock TEST12K, 12,000 miles. Standouts: Bluetooth."};
     document.getElementById("fillRaptor").onclick = () => runFill(raptor, "Raptor", { mileage: "87000" });
@@ -335,12 +360,15 @@
             ? [await runFill(lowMiles, "LowMiles", { mileage: "50" })]
             : want === "mid"
               ? [await runFill(midMiles, "MidMiles", { mileage: "12000" })]
-              : [
-                  await runFill(raptor, "Raptor", { mileage: "87000" }),
-                  await runFill(nissan, "Nissan", { mileage: "0" }),
-                  await runFill(lowMiles, "LowMiles", { mileage: "50" }),
-                  await runFill(midMiles, "MidMiles", { mileage: "12000" }),
-                ];
+              : want === "y2027"
+                ? [await runFill(year2027, "Year2027", { mileage: "0" })]
+                : [
+                    await runFill(raptor, "Raptor", { mileage: "87000" }),
+                    await runFill(nissan, "Nissan", { mileage: "0" }),
+                    await runFill(lowMiles, "LowMiles", { mileage: "50" }),
+                    await runFill(midMiles, "MidMiles", { mileage: "12000" }),
+                    await runFill(year2027, "Year2027", { mileage: "0" }),
+                  ];
       writeReport(report);
     })();
   </script>

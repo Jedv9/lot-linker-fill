@@ -473,6 +473,40 @@ function bodyStyleCandidates(pack) {
   return cleaned ? [cleaned] : [];
 }
 
+function fbColorHint(pack, which) {
+  const raw = which === "interior" ? pack?.interiorFb : pack?.exteriorFb;
+  if (isBlankPackValue(raw)) return [];
+  return [String(raw).trim()];
+}
+
+function mergedColorCandidates(pack, which) {
+  const raw = which === "interior" ? pack?.interior : pack?.exterior;
+  return [...new Set([...fbColorHint(pack, which), ...colorCandidates(raw)])];
+}
+
+function yearCandidates(pack) {
+  const y = isBlankPackValue(pack?.year) ? "" : String(pack.year).trim();
+  return y ? [y] : [];
+}
+
+function closestYearValue(want, available) {
+  const n = Number(String(want).replace(/[^\d]/g, ""));
+  const years = (available || []).map((v) => String(v).trim()).filter((v) => /^\d{4}$/.test(v));
+  if (!Number.isFinite(n) || !years.length) return "";
+  let best = years[0];
+  let dist = Infinity;
+  for (const y of years) {
+    const d = Math.abs(Number(y) - n);
+    if (d < dist) {
+      dist = d;
+      best = y;
+    }
+  }
+  // Only snap to an adjacent year (2027 pack vs FB max 2026). Never grab
+  // the edge of a virtualized window (2012 must not become 2017).
+  return dist <= 1 ? best : "";
+}
+
 function colorCandidates(raw) {
   if (isBlankPackValue(raw)) return [];
   const s = String(raw).toLowerCase();
@@ -757,14 +791,39 @@ function fillNativeSelect(el, value) {
   return true;
 }
 
-function pickOpenOption(want) {
-  const w = shortText(want).toLowerCase();
-  if (!w) return false;
-  const opts = [
+function visibleChoiceOptions() {
+  return [
     ...document.querySelectorAll(
       '[role="option"], [role="menuitem"], [role="menuitemradio"], li[role="option"], [role="listbox"] [role="option"], [role="listbox"] > div, [role="listbox"] > li'
     ),
-  ].filter((o) => !isUnsafeClickTarget(o) && isDisplayed(o));
+  ].filter((o) => !isUnsafeClickTarget(o) && isDisplayed(o) && optionText(o));
+}
+
+async function waitForOptions({ tries = 12, delayMs = 120 } = {}) {
+  let last = visibleChoiceOptions();
+  if (last.length) return last;
+  for (let i = 0; i < tries; i++) {
+    await delay(delayMs);
+    last = visibleChoiceOptions();
+    if (last.length) return last;
+  }
+  return last;
+}
+
+function closeOpenListbox() {
+  try {
+    const ev = { key: "Escape", code: "Escape", keyCode: 27, which: 27, bubbles: true, cancelable: true };
+    document.activeElement?.dispatchEvent(new KeyboardEvent("keydown", ev));
+    document.dispatchEvent(new KeyboardEvent("keydown", ev));
+  } catch {
+    /* ignore */
+  }
+}
+
+function pickOpenOption(want) {
+  const w = shortText(want).toLowerCase();
+  if (!w) return false;
+  const opts = visibleChoiceOptions();
   const scored = opts
     .map((el) => {
       const t = optionText(el).toLowerCase();
@@ -831,8 +890,15 @@ function typeIntoOpenChoice(el, value) {
   }
 }
 
+async function pickExactOrClosestYear(want) {
+  if (pickOpenOption(want)) return true;
+  return false;
+}
+
 async function fillChoice(matchers, value, exclude = []) {
   if (isBlankPackValue(value)) return false;
+  closeOpenListbox();
+  await delay(40);
   const el =
     findChoiceByNearbyLabel(matchers, exclude) ||
     findChoiceControl(matchers, exclude) ||
@@ -853,20 +919,22 @@ async function fillChoice(matchers, value, exclude = []) {
   } catch {
     /* ignore */
   }
-  await delay(180);
-  if (pickOpenOption(value)) {
+  let opts = await waitForOptions();
+  if (opts.length && (await pickExactOrClosestYear(value))) {
     await delay(80);
     return choiceLooksSet(el, value) || true;
   }
   typeIntoOpenChoice(el, value);
-  await delay(200);
-  if (pickOpenOption(value)) {
+  opts = await waitForOptions();
+  if (await pickExactOrClosestYear(value)) {
     await delay(80);
     return true;
   }
-  for (let i = 0; i < 3; i++) {
-    await delay(160);
-    if (pickOpenOption(value)) {
+  if (/^\d{4}$/.test(String(value).trim())) {
+    typeIntoOpenChoice(el, "");
+    opts = await waitForOptions();
+    const closest = closestYearValue(value, opts.map(optionText));
+    if (closest && pickOpenOption(closest)) {
       await delay(80);
       return true;
     }
@@ -1340,18 +1408,18 @@ async function fillPackOnce(pack) {
   );
   await delay(400);
 
-  const yearVal = isBlankPackValue(p.year) ? "" : String(p.year).trim();
+  const yearVals = yearCandidates(p);
   markIfPresent(
     mark,
     "year",
-    Boolean(yearVal),
-    await fillChoiceRetry(
+    yearVals.length > 0,
+    await fillChoiceAnyRetry(
       [/^year$/, /\byear\b/, /vehicle year/, /model year/],
-      yearVal,
+      yearVals,
       [...CHOICE_EXCLUDE, /\bmake\b/, /\bmodel\b/]
     )
   );
-  if (yearVal) await delay(200);
+  if (yearVals.length) await delay(200);
 
   const makeVal = isBlankPackValue(p.make) ? "" : String(p.make).trim();
   markIfPresent(
@@ -1404,30 +1472,33 @@ async function fillPackOnce(pack) {
       [...specExclude, /\bexterior\b/, /\binterior\b/, /\bfuel\b/]
     )
   );
+  await delay(150);
 
-  const extVals = colorCandidates(p.exterior);
+  const extVals = mergedColorCandidates(p, "exterior");
   markIfPresent(
     mark,
     "exterior",
-    !isBlankPackValue(p.exterior),
+    !isBlankPackValue(p.exterior) || !isBlankPackValue(p.exteriorFb),
     await fillChoiceAnyRetry(
       [/^exterior$/, /\bexterior colou?r\b/, /\bexterior\b/, /outside colou?r/, /^colou?r$/, /\bvehicle colou?r\b/, /\bpaint colou?r\b/],
       extVals,
       [...specExclude, /\binterior\b/, /\bfuel\b/, /body style/]
     )
   );
+  await delay(150);
 
-  const intVals = colorCandidates(p.interior);
+  const intVals = mergedColorCandidates(p, "interior");
   markIfPresent(
     mark,
     "interior",
-    !isBlankPackValue(p.interior),
+    !isBlankPackValue(p.interior) || !isBlankPackValue(p.interiorFb),
     await fillChoiceAnyRetry(
       [/^interior$/, /\binterior colou?r\b/, /\binterior\b/, /inside colou?r/, /\bseat colou?r\b/],
       intVals,
       [...specExclude, /\bexterior\b/, /\bfuel\b/, /body style/]
     )
   );
+  await delay(150);
 
   const fuelVals = fuelCandidates(p);
   markIfPresent(
@@ -1567,6 +1638,10 @@ if (typeof globalThis !== "undefined") {
     findChoiceByNearbyLabel,
     isExcludedLabel,
     colorCandidates,
+    mergedColorCandidates,
+    yearCandidates,
+    closestYearValue,
+    waitForOptions,
     bodyStyleCandidates,
     labelText,
     startPostedWatch,
