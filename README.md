@@ -47,12 +47,12 @@ Bundled `packs.json` loads on open. **Refresh packs** pulls the latest `packs.js
 ```
 bash scripts/build-zip.sh
 ```
-Writes `dist/lot-linker-fill-2.3.1.zip` and `dist/lot-linker-fill.zip` (unpacked folder inside the zip).
+Writes `dist/lot-linker-fill-2.3.2.zip` and `dist/lot-linker-fill.zip` (unpacked folder inside the zip).
 
 ## Reload after update
 Chrome → `chrome://extensions` → Lot Linker Fill → Reload. If you load from the zip, unzip then Load unpacked on that folder (same as before).
 
 ## Version
-2.3.1
+2.3.2
 
-One-click Fill **first** sets **Vehicle type** to **Car/Truck** (Year/Make/etc. will not take until this is set), then writes **Year**, **Make**, **Price**, **Mileage**, **Body style**, **Exterior color**, **Interior color**, **Fuel type**, **Model** title line, **Description**, and **photos**. **VIN is never written**. Clean title and vehicle condition are never written. Description fill still walks Facebook’s vehicle-create markup. Comboboxes open then click a matching `[role=option]`. Price and Mileage use digits only. Mileage is clamped to a **300**-mile Facebook minimum (0 / blank / under 300 → 300).
+One-click Fill **first** sets **Vehicle type** to **Car/Truck** (Year/Make/etc. will not take until this is set), then writes **Year**, **Make**, **Price**, **Mileage**, **Body style**, **Exterior color**, **Interior color**, **Fuel type**, **Model** title line, **Description**, and **photos**. **VIN is never written**. Clean title and vehicle condition are never written. Description fill still walks Facebook’s vehicle-create markup. Year / Body style / Exterior / Interior are found by nearby label text (not only `aria-label`) so a grouped “Year, make, model…” wrapper does not skip them. Comboboxes open, type-to-filter when the list is long, then click a matching `[role=option]`. Price and Mileage use digits only. Mileage is clamped to a **300**-mile Facebook minimum (0 / blank / under 300 → 300).

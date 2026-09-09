@@ -392,10 +392,22 @@ function ownLabel(el) {
     const t = shortText(prev.textContent);
     if (t && t.length < 40) bits.push(t);
   }
+  const caption = shortChoiceCaption(el);
+  if (caption) bits.push(caption);
   const parent = el.parentElement;
   if (parent) {
     const pLab = parent.getAttribute("aria-label");
     if (pLab) bits.push(pLab);
+    const pPrev = parent.previousElementSibling;
+    if (
+      pPrev &&
+      pPrev.matches?.("label, span, div, p, legend, [role=label]") &&
+      !isControl(pPrev) &&
+      !pPrev.querySelector?.("input, textarea, [contenteditable], [role=textbox], [role=combobox]")
+    ) {
+      const t = shortText(pPrev.textContent);
+      if (t && t.length < 40) bits.push(t);
+    }
     const kid = [...parent.children].find((n) => {
       if (n === el || isControl(n)) return false;
       const t = shortText(n.textContent);
@@ -404,6 +416,23 @@ function ownLabel(el) {
     if (kid) bits.push(kid.textContent);
   }
   return bits.filter(Boolean).map(shortText).filter(Boolean).join(" ").toLowerCase();
+}
+
+/** Placeholder text inside a FB combobox/button ("Year") — not a separate aria-label. */
+function shortChoiceCaption(el) {
+  if (!el) return "";
+  if (el.querySelector?.("[role=option], [role=listbox]")) return "";
+  const raw = shortText(el.textContent);
+  if (raw && raw.length < 36) return raw;
+  return "";
+}
+
+/** Skip only when the label is a *different* field — not a grouped "Year, make, model" heading. */
+function isExcludedLabel(lab, matchers, exclude) {
+  const t = String(lab || "");
+  if (!t) return false;
+  if (matchers && matchers.some((m) => m.test(t))) return false;
+  return (exclude || []).some((x) => x.test(t));
 }
 
 function isBlankPackValue(v) {
@@ -439,9 +468,43 @@ function bodyStyleCandidates(pack) {
   if (/coupe/.test(t)) return ["Coupe"];
   if (/convertible/.test(t)) return ["Convertible"];
   if (/wagon/.test(t)) return ["Wagon"];
-  if (/crew|cab|supercrew|pickup|truck/.test(t)) return ["Truck"];
+  if (/crew|cab|supercrew|pickup|truck/.test(t)) return ["Truck", "Pickup", "Pickup truck"];
   const cleaned = String(pack.bodyStyle).replace(/\s+\dD$/i, "").trim();
   return cleaned ? [cleaned] : [];
+}
+
+function fbColorHint(pack, which) {
+  const raw = which === "interior" ? pack?.interiorFb : pack?.exteriorFb;
+  if (isBlankPackValue(raw)) return [];
+  return [String(raw).trim()];
+}
+
+function mergedColorCandidates(pack, which) {
+  const raw = which === "interior" ? pack?.interior : pack?.exterior;
+  return [...new Set([...fbColorHint(pack, which), ...colorCandidates(raw)])];
+}
+
+function yearCandidates(pack) {
+  const y = isBlankPackValue(pack?.year) ? "" : String(pack.year).trim();
+  return y ? [y] : [];
+}
+
+function closestYearValue(want, available) {
+  const n = Number(String(want).replace(/[^\d]/g, ""));
+  const years = (available || []).map((v) => String(v).trim()).filter((v) => /^\d{4}$/.test(v));
+  if (!Number.isFinite(n) || !years.length) return "";
+  let best = years[0];
+  let dist = Infinity;
+  for (const y of years) {
+    const d = Math.abs(Number(y) - n);
+    if (d < dist) {
+      dist = d;
+      best = y;
+    }
+  }
+  // Only snap to an adjacent year (2027 pack vs FB max 2026). Never grab
+  // the edge of a virtualized window (2012 must not become 2017).
+  return dist <= 1 ? best : "";
 }
 
 function colorCandidates(raw) {
@@ -449,12 +512,24 @@ function colorCandidates(raw) {
   const s = String(raw).toLowerCase();
   const palette = [
     ["charcoal", ["Charcoal", "Grey", "Gray", "Black"]],
+    ["graphite", ["Grey", "Gray", "Black"]],
+    ["ebony", ["Black"]],
+    ["onyx", ["Black"]],
+    ["sport", ["Black", "Charcoal", "Grey", "Gray"]],
     ["burgundy", ["Burgundy", "Red"]],
     ["maroon", ["Burgundy", "Red"]],
     ["ivory", ["Ivory", "White"]],
     ["cream", ["Cream", "Beige", "White"]],
     ["beige", ["Beige", "Tan"]],
+    ["almond", ["Beige", "Tan"]],
+    ["parchment", ["Beige", "Tan", "White"]],
+    ["camel", ["Tan", "Beige"]],
+    ["chestnut", ["Brown"]],
+    ["pecan", ["Brown"]],
     ["bronze", ["Bronze", "Brown"]],
+    ["platinum", ["Silver", "Grey", "Gray"]],
+    ["steel", ["Grey", "Gray", "Silver"]],
+    ["denim", ["Blue"]],
     ["silver", ["Silver"]],
     ["white", ["White"]],
     ["black", ["Black"]],
@@ -475,7 +550,8 @@ function colorCandidates(raw) {
   for (const [word, aliases] of palette) {
     if (new RegExp(`\\b${word}\\b`).test(s)) return aliases;
   }
-  return [];
+  const cleaned = String(raw).replace(/\s+\dD$/i, "").trim();
+  return cleaned ? [cleaned] : [];
 }
 
 function fuelCandidates(pack) {
@@ -563,14 +639,14 @@ function findField(matchers, { exclude = [], prefer } = {}) {
     if (isOffLimitsControl(el)) continue;
     const own = ownLabel(el);
     if (isVinLabel(own) || isOffLimitsLabel(own)) continue;
-    if (exclude.some((x) => x.test(own))) continue;
+    if (isExcludedLabel(own, matchers, exclude)) continue;
     if (own && matchers.some((m) => m.test(own))) {
       hits.push({ el, lab: own, ownHit: true });
       continue;
     }
     const deep = labelText(el);
     if (isVinLabel(deep)) continue;
-    if (exclude.some((x) => x.test(deep))) continue;
+    if (isExcludedLabel(deep, matchers, exclude)) continue;
     if (deep && matchers.some((m) => m.test(deep))) {
       hits.push({ el, lab: deep, ownHit: false });
     }
@@ -600,6 +676,66 @@ function optionText(el) {
   return shortText(el?.textContent || el?.getAttribute?.("aria-label") || "");
 }
 
+function isChoiceNode(el) {
+  return el?.matches?.(
+    '[role="combobox"], [aria-haspopup="listbox"], [aria-haspopup="true"], select, [role="listbox"], [role="button"]'
+  );
+}
+
+function choiceInside(root) {
+  if (!root) return null;
+  if (root instanceof HTMLSelectElement) return root;
+  if (root instanceof HTMLInputElement) {
+    const t = (root.type || "").toLowerCase();
+    if (["hidden", "checkbox", "radio", "file", "submit", "button"].includes(t)) return null;
+    return root;
+  }
+  if (isChoiceNode(root)) return root;
+  return (
+    root.querySelector?.(
+      '[role="combobox"], [aria-haspopup="listbox"], [aria-haspopup="true"], select, input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=file]):not([type=submit]):not([type=button])'
+    ) || null
+  );
+}
+
+function choiceControlAfterLabel(node) {
+  let sib = node.nextElementSibling;
+  for (let i = 0; i < 6 && sib; i++) {
+    const c = choiceInside(sib);
+    if (c && !isOffLimitsControl(c) && !isUnsafeClickTarget(c)) return c;
+    sib = sib.nextElementSibling;
+  }
+  let parent = node.parentElement;
+  for (let d = 0; d < 5 && parent; d++) {
+    const c = choiceInside(parent);
+    if (c && !isOffLimitsControl(c) && !isUnsafeClickTarget(c) && c !== node && !c.contains?.(node)) return c;
+    sib = parent.nextElementSibling;
+    for (let i = 0; i < 4 && sib; i++) {
+      const cc = choiceInside(sib);
+      if (cc && !isOffLimitsControl(cc) && !isUnsafeClickTarget(cc)) return cc;
+      sib = sib.nextElementSibling;
+    }
+    parent = parent.parentElement;
+  }
+  return null;
+}
+
+function findChoiceByNearbyLabel(matchers, exclude = []) {
+  const nodes = document.querySelectorAll("span, label, div, p, legend, [role=label]");
+  for (const node of nodes) {
+    if (isControl(node) || isChoiceNode(node)) continue;
+    if (node.querySelector("input, textarea, [contenteditable], [role=textbox], [role=combobox]")) continue;
+    const t = shortText(node.textContent).toLowerCase();
+    if (!t || t.length > 40) continue;
+    if (!matchers.some((m) => m.test(t))) continue;
+    if (isExcludedLabel(t, matchers, exclude)) continue;
+    if (isOffLimitsLabel(t) || isVinLabel(t)) continue;
+    const control = choiceControlAfterLabel(node);
+    if (control) return control;
+  }
+  return null;
+}
+
 function findChoiceControl(matchers, exclude = []) {
   const nodes = [
     ...document.querySelectorAll(
@@ -612,7 +748,7 @@ function findChoiceControl(matchers, exclude = []) {
     const lab = own || labelText(el);
     if (!lab) continue;
     if (isOffLimitsControl(el) || isVinLabel(own) || isVinLabel(lab) || isOffLimitsLabel(own) || isOffLimitsLabel(lab)) continue;
-    if (exclude.some((x) => x.test(own) || x.test(lab))) continue;
+    if (isExcludedLabel(own, matchers, exclude) || isExcludedLabel(lab, matchers, exclude)) continue;
     const ownHit = own && matchers.some((m) => m.test(own));
     const deepHit = matchers.some((m) => m.test(lab) || m.test(labelText(el)));
     if (!ownHit && !deepHit) continue;
@@ -625,7 +761,7 @@ function findChoiceControl(matchers, exclude = []) {
       const lab = own || labelText(el);
       if (!lab) continue;
       if (isOffLimitsControl(el) || isVinLabel(own) || isVinLabel(lab) || isOffLimitsLabel(own) || isOffLimitsLabel(lab)) continue;
-      if (exclude.some((x) => x.test(own) || x.test(lab))) continue;
+      if (isExcludedLabel(own, matchers, exclude) || isExcludedLabel(lab, matchers, exclude)) continue;
       if (!matchers.some((m) => m.test(own) || m.test(lab))) continue;
       if (el.closest("input, textarea, [contenteditable]")) continue;
       hits.push({ el, lab, ownHit: Boolean(own && matchers.some((m) => m.test(own))) });
@@ -655,12 +791,39 @@ function fillNativeSelect(el, value) {
   return true;
 }
 
+function visibleChoiceOptions() {
+  return [
+    ...document.querySelectorAll(
+      '[role="option"], [role="menuitem"], [role="menuitemradio"], li[role="option"], [role="listbox"] [role="option"], [role="listbox"] > div, [role="listbox"] > li'
+    ),
+  ].filter((o) => !isUnsafeClickTarget(o) && isDisplayed(o) && optionText(o));
+}
+
+async function waitForOptions({ tries = 12, delayMs = 120 } = {}) {
+  let last = visibleChoiceOptions();
+  if (last.length) return last;
+  for (let i = 0; i < tries; i++) {
+    await delay(delayMs);
+    last = visibleChoiceOptions();
+    if (last.length) return last;
+  }
+  return last;
+}
+
+function closeOpenListbox() {
+  try {
+    const ev = { key: "Escape", code: "Escape", keyCode: 27, which: 27, bubbles: true, cancelable: true };
+    document.activeElement?.dispatchEvent(new KeyboardEvent("keydown", ev));
+    document.dispatchEvent(new KeyboardEvent("keydown", ev));
+  } catch {
+    /* ignore */
+  }
+}
+
 function pickOpenOption(want) {
   const w = shortText(want).toLowerCase();
   if (!w) return false;
-  const opts = [
-    ...document.querySelectorAll('[role="option"], [role="menuitem"], [role="menuitemradio"], li[role="option"]'),
-  ].filter((o) => !isUnsafeClickTarget(o) && isDisplayed(o));
+  const opts = visibleChoiceOptions();
   const scored = opts
     .map((el) => {
       const t = optionText(el).toLowerCase();
@@ -691,9 +854,55 @@ function choiceLooksSet(el, value) {
   return looksFilled(el, value);
 }
 
+function typeIntoOpenChoice(el, value) {
+  const text = String(value);
+  const active = document.activeElement;
+  const nearbyInput =
+    el.parentElement?.querySelector("input:not([type=hidden]):not([type=checkbox]):not([type=radio])") ||
+    (el.nextElementSibling instanceof HTMLInputElement ? el.nextElementSibling : null);
+  const input =
+    (active instanceof HTMLInputElement && active) ||
+    (el instanceof HTMLInputElement && el) ||
+    el.querySelector?.("input:not([type=hidden]):not([type=checkbox]):not([type=radio])") ||
+    nearbyInput ||
+    document.querySelector("[role=listbox] input:not([type=hidden]), [role=combobox] input:not([type=hidden])");
+  if (input && !isOffLimitsControl(input) && !isVinControl(input)) {
+    fillMultiline(input, text);
+    return true;
+  }
+  const target = active && active.getAttribute?.("role") === "combobox" ? active : el;
+  try {
+    target.focus();
+  } catch {
+    /* ignore */
+  }
+  try {
+    if (document.execCommand("insertText", false, text)) return true;
+  } catch {
+    /* ignore */
+  }
+  try {
+    target.textContent = text;
+    target.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, data: text }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function pickExactOrClosestYear(want) {
+  if (pickOpenOption(want)) return true;
+  return false;
+}
+
 async function fillChoice(matchers, value, exclude = []) {
   if (isBlankPackValue(value)) return false;
-  const el = findChoiceControl(matchers, exclude) || findField(matchers, { exclude });
+  closeOpenListbox();
+  await delay(40);
+  const el =
+    findChoiceByNearbyLabel(matchers, exclude) ||
+    findChoiceControl(matchers, exclude) ||
+    findField(matchers, { exclude });
   if (!el || isUnsafeClickTarget(el) || isOffLimitsControl(el) || isVinLabel(ownLabel(el))) return false;
   if (el instanceof HTMLSelectElement) return fillNativeSelect(el, value);
   if ((el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) && fillMultiline(el, value) && looksFilled(el, value)) {
@@ -710,30 +919,44 @@ async function fillChoice(matchers, value, exclude = []) {
   } catch {
     /* ignore */
   }
-  await delay(180);
-  if (pickOpenOption(value)) {
+  let opts = await waitForOptions();
+  if (opts.length && (await pickExactOrClosestYear(value))) {
     await delay(80);
     return choiceLooksSet(el, value) || true;
   }
-  const active = document.activeElement;
-  if (active && (active instanceof HTMLInputElement || active.getAttribute("role") === "combobox")) {
-    if (active instanceof HTMLInputElement) fillMultiline(active, value);
-    else {
-      try {
-        active.textContent = String(value);
-        active.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, data: String(value) }));
-      } catch {
-        /* ignore */
-      }
-    }
-    await delay(200);
-    if (pickOpenOption(value)) {
+  typeIntoOpenChoice(el, value);
+  opts = await waitForOptions();
+  if (await pickExactOrClosestYear(value)) {
+    await delay(80);
+    return true;
+  }
+  if (/^\d{4}$/.test(String(value).trim())) {
+    typeIntoOpenChoice(el, "");
+    opts = await waitForOptions();
+    const closest = closestYearValue(value, opts.map(optionText));
+    if (closest && pickOpenOption(closest)) {
       await delay(80);
       return true;
     }
   }
   if (el instanceof HTMLInputElement) return fillMultiline(el, value) && looksFilled(el, value);
   return choiceLooksSet(el, value);
+}
+
+async function fillChoiceRetry(matchers, value, exclude = [], tries = 3) {
+  for (let i = 0; i < tries; i++) {
+    if (await fillChoice(matchers, value, exclude)) return true;
+    await delay(220);
+  }
+  return false;
+}
+
+async function fillChoiceAnyRetry(matchers, values, exclude = []) {
+  const list = [...new Set((values || []).map((v) => String(v || "").trim()).filter((v) => !isBlankPackValue(v)))];
+  for (const v of list) {
+    if (await fillChoiceRetry(matchers, v, exclude)) return true;
+  }
+  return false;
 }
 
 function controlAfterLabel(node) {
@@ -1185,14 +1408,18 @@ async function fillPackOnce(pack) {
   );
   await delay(400);
 
-  const yearVal = isBlankPackValue(p.year) ? "" : String(p.year).trim();
+  const yearVals = yearCandidates(p);
   markIfPresent(
     mark,
     "year",
-    Boolean(yearVal),
-    await fillChoice([/^year$/, /\byear\b/], yearVal, [...CHOICE_EXCLUDE, /\bmake\b/, /\bmodel\b/])
+    yearVals.length > 0,
+    await fillChoiceAnyRetry(
+      [/^year$/, /\byear\b/, /vehicle year/, /model year/],
+      yearVals,
+      [...CHOICE_EXCLUDE, /\bmake\b/, /\bmodel\b/]
+    )
   );
-  if (yearVal) await delay(200);
+  if (yearVals.length) await delay(200);
 
   const makeVal = isBlankPackValue(p.make) ? "" : String(p.make).trim();
   markIfPresent(
@@ -1239,32 +1466,39 @@ async function fillPackOnce(pack) {
     mark,
     "bodyStyle",
     bodyVals.length > 0,
-    await fillChoiceAny([/^body style$/, /\bbody style\b/, /^body$/], bodyVals, [...specExclude, /\bexterior\b/, /\binterior\b/, /\bfuel\b/])
+    await fillChoiceAnyRetry(
+      [/^body style$/, /\bbody style\b/, /\bbody type\b/, /^body$/, /\bvehicle (style|body)\b/],
+      bodyVals,
+      [...specExclude, /\bexterior\b/, /\binterior\b/, /\bfuel\b/]
+    )
   );
+  await delay(150);
 
-  const extVals = colorCandidates(p.exterior);
+  const extVals = mergedColorCandidates(p, "exterior");
   markIfPresent(
     mark,
     "exterior",
-    extVals.length > 0,
-    await fillChoiceAny(
-      [/^exterior$/, /\bexterior colou?r\b/, /\bexterior\b/, /outside colou?r/],
+    !isBlankPackValue(p.exterior) || !isBlankPackValue(p.exteriorFb),
+    await fillChoiceAnyRetry(
+      [/^exterior$/, /\bexterior colou?r\b/, /\bexterior\b/, /outside colou?r/, /^colou?r$/, /\bvehicle colou?r\b/, /\bpaint colou?r\b/],
       extVals,
       [...specExclude, /\binterior\b/, /\bfuel\b/, /body style/]
     )
   );
+  await delay(150);
 
-  const intVals = colorCandidates(p.interior);
+  const intVals = mergedColorCandidates(p, "interior");
   markIfPresent(
     mark,
     "interior",
-    intVals.length > 0,
-    await fillChoiceAny(
-      [/^interior$/, /\binterior colou?r\b/, /\binterior\b/, /inside colou?r/],
+    !isBlankPackValue(p.interior) || !isBlankPackValue(p.interiorFb),
+    await fillChoiceAnyRetry(
+      [/^interior$/, /\binterior colou?r\b/, /\binterior\b/, /inside colou?r/, /\bseat colou?r\b/],
       intVals,
       [...specExclude, /\bexterior\b/, /\bfuel\b/, /body style/]
     )
   );
+  await delay(150);
 
   const fuelVals = fuelCandidates(p);
   markIfPresent(
@@ -1401,6 +1635,14 @@ if (typeof globalThis !== "undefined") {
     isMarketplacePath,
     findField,
     findDescriptionField,
+    findChoiceByNearbyLabel,
+    isExcludedLabel,
+    colorCandidates,
+    mergedColorCandidates,
+    yearCandidates,
+    closestYearValue,
+    waitForOptions,
+    bodyStyleCandidates,
     labelText,
     startPostedWatch,
     rememberFillForPostWatch,

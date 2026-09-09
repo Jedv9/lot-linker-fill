@@ -9,11 +9,11 @@ const chrome = spawnSync(
     "--disable-gpu",
     "--no-sandbox",
     "--disable-dev-shm-usage",
-    "--virtual-time-budget=12000",
+    "--virtual-time-budget=40000",
     "--dump-dom",
     fixture.href,
   ],
-  { encoding: "utf8", timeout: 45000, maxBuffer: 20 * 1024 * 1024 }
+  { encoding: "utf8", timeout: 90000, maxBuffer: 20 * 1024 * 1024 }
 );
 
 assert.equal(chrome.status, 0, `chrome failed: ${chrome.stderr || chrome.stdout.slice(0, 500)}`);
@@ -32,6 +32,8 @@ for (const row of report) {
   assert.ok(row.filled.includes("price"), `${row.label} price`);
   assert.ok(row.filled.includes("mileage"), `${row.label} mileage`);
   assert.ok(row.filled.includes("bodyStyle"), `${row.label} body style`);
+  assert.ok(row.filled.includes("exterior"), `${row.label} exterior`);
+  assert.ok(row.filled.includes("interior"), `${row.label} interior`);
   assert.ok(row.filled.includes("model"), `${row.label} model`);
   assert.ok(row.filled.includes("description"), `${row.label} description`);
   assert.ok(!row.filled.includes("vin"), `${row.label} must not fill VIN`);
@@ -62,21 +64,36 @@ for (const row of report) {
     assert.equal(row.price, "30470");
     assert.equal(row.mileage, "300");
     assert.equal(row.bodyStyle, "Sedan");
-    assert.ok(["Grey", "Gray"].includes(row.exterior), `${row.label} exterior ${row.exterior}`);
-    assert.equal(row.interior, "");
+    assert.equal(row.exterior, "Gray");
+    assert.equal(row.interior, "Black");
     assert.equal(row.fuel, "Gasoline");
+  }
+  if (row.label === "Year2027") {
+    assert.equal(row.year, "2026");
+    assert.equal(row.make, "Hyundai");
+    assert.equal(row.bodyStyle, "SUV");
+    assert.equal(row.exterior, "Green");
+    assert.equal(row.interior, "Tan");
+    assert.equal(row.fuel, "Electric");
+    assert.equal(row.mileage, "300");
   }
   if (row.label === "LowMiles") {
     assert.equal(row.mileage, "300");
     assert.equal(row.year, "2016");
     assert.equal(row.make, "Hyundai");
     assert.equal(row.price, "12995");
+    assert.equal(row.bodyStyle, "Sedan");
+    assert.equal(row.exterior, "White");
+    assert.equal(row.interior, "Black");
   }
   if (row.label === "MidMiles") {
     assert.equal(row.mileage, "12000");
     assert.equal(row.year, "2016");
     assert.equal(row.make, "Hyundai");
     assert.equal(row.price, "12995");
+    assert.equal(row.bodyStyle, "Sedan");
+    assert.equal(row.exterior, "White");
+    assert.equal(row.interior, "Black");
   }
 }
 
