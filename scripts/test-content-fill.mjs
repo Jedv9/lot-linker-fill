@@ -12,7 +12,7 @@ const manifest = JSON.parse(readFileSync(new URL("../manifest.json", import.meta
 const background = readFileSync(new URL("../background.js", import.meta.url), "utf8");
 const zipBuild = readFileSync(new URL("./build-zip.sh", import.meta.url), "utf8");
 
-assert.equal(manifest.version, "2.2.4");
+assert.equal(manifest.version, "2.2.5");
 assert.deepEqual(manifest.content_scripts[0].js, ["listing-copy.js", "photos.js", "content-fb.js"]);
 assert.equal(manifest.background.service_worker, "background.js");
 assert.ok(manifest.permissions.includes("downloads"), "fallback save uses chrome.downloads");
@@ -29,6 +29,8 @@ assert.match(content, /\\bdescription\\b/);
 assert.match(content, /fillChoice/);
 assert.match(content, /priceDigits/);
 assert.match(content, /mileageDigits/);
+assert.match(content, /marketplaceMileage/);
+assert.match(content, /Math\.max\(\s*300/);
 assert.match(content, /bodyStyleCandidates/);
 assert.match(content, /colorCandidates/);
 assert.match(content, /fuelCandidates/);

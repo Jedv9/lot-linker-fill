@@ -418,12 +418,14 @@ function priceDigits(pack) {
 }
 
 function mileageDigits(pack) {
+  if (typeof LotLinkerListing !== "undefined" && LotLinkerListing.marketplaceMileage) {
+    return LotLinkerListing.marketplaceMileage(pack);
+  }
   const raw =
     pack?.odometerMiles != null && pack.odometerMiles !== "" ? pack.odometerMiles : pack?.mileage;
-  if (raw == null || raw === "") return "";
-  const n = Number(String(raw).replace(/[^\d]/g, ""));
-  if (!Number.isFinite(n) || n < 0) return "";
-  return String(Math.round(n));
+  const n = Number(String(raw ?? "").replace(/[^\d]/g, ""));
+  const miles = Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
+  return String(Math.max(300, miles));
 }
 
 function bodyStyleCandidates(pack) {
