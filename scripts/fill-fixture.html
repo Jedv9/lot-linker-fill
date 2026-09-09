@@ -24,6 +24,11 @@
   </style>
 </head>
 <body>
+  <header role="banner" class="fb-chrome">
+    <a id="fb-logo" href="https://www.facebook.com/">Facebook</a>
+    <a id="fb-home" href="/">Home</a>
+    <button type="button" id="fb-post" aria-label="Post">Post</button>
+  </header>
   <h1>Marketplace vehicle create listing (fixture)</h1>
   <p class="warn">Fill Year, Make, Price, Mileage, Body style, colors, Fuel, Model, Description. Never VIN. Never clean title. Never condition. Never Post.</p>
   <div class="row">
@@ -126,6 +131,7 @@
 
   <script src="../listing-copy.js?v=model-line"></script>
   <script src="../photos.js"></script>
+  <script src="../fb-nav.js"></script>
   <script src="../content-fb.js"></script>
   <script>
     function lot(name) {
@@ -217,7 +223,23 @@
 
     const years = [];
     for (let y = 2026; y >= 1990; y--) years.push(String(y));
-    wireCombo(document.getElementById("vehicle-type"), ["Car/Truck", "Boat", "Motorcycle"]);
+    window.__lotLinkerHomeClicks = 0;
+    window.__lotLinkerEscapes = 0;
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") window.__lotLinkerEscapes += 1;
+    }, true);
+    ["fb-logo", "fb-home"].forEach((id) => {
+      document.getElementById(id).addEventListener("click", (e) => {
+        e.preventDefault();
+        window.__lotLinkerHomeClicks += 1;
+      });
+    });
+    document.getElementById("fb-post").addEventListener("click", (e) => {
+      e.preventDefault();
+      window.__lotLinkerHomeClicks += 1;
+    });
+
+    wireCombo(document.getElementById("vehicle-type"), ["Car/Truck", "Boat", "Motorcycle"], { delayMs: 180 });
     wireYearTypeahead(lot("year"), years);
     wireCombo(document.getElementById("make"), ["Ford", "Nissan", "Hyundai"]);
     wireCombo(lot("body-style"), ["Sedan", "SUV", "Truck", "Pickup", "Hatchback", "Coupe", "Minivan", "Wagon"], { delayMs: 220 });
@@ -346,6 +368,8 @@
         condition: r.fields.condition,
         descriptionHasNewlines: /\n/.test(r.fields.description),
         descriptionFilled: r.result.filled.includes("description") && !r.result.missed.includes("description"),
+        homeClicks: window.__lotLinkerHomeClicks || 0,
+        documentEscape: window.__lotLinkerEscapes || 0,
       })));
       document.body.dataset.reportReady = "1";
     }

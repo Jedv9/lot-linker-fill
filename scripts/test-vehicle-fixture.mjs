@@ -47,6 +47,8 @@ for (const row of report) {
   assert.equal(row.cleanTitle, false);
   assert.equal(row.condition, "");
   assert.equal(row.vin, "DO-NOT-TOUCH");
+  assert.equal(row.homeClicks, 0, `${row.label} must not click Home/Post`);
+  assert.equal(row.documentEscape, 0, `${row.label} must not Escape-close the composer`);
   if (row.label === "Raptor") {
     assert.equal(row.model, "F-150 SVT Raptor | 4WD | $26,900 | Oconomowoc WI");
     assert.equal(row.year, "2012");
