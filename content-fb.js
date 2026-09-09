@@ -861,7 +861,7 @@ function delay(ms) {
 const PHOTO_LABEL_RE = /\b(photo|photos|picture|pictures|image|images|gallery|media)\b/i;
 const PHOTO_EXCLUDE_RE = /\b(profile|avatar|cover photo|comment|messenger|story)\b/i;
 const PHOTO_REVEAL_RE = /^(add photos?|upload photos?|add pictures?|choose (files?|photos?)|photos|add media)$/i;
-const NEVER_CLICK_RE = /^(post|publish|next|submit|share|create listing|publish listing)$/i;
+const NEVER_CLICK_RE = /^(post|publish|next|submit|share|buy|offer|make offer|buy now|create listing|publish listing)$/i;
 
 function photoContext(el) {
   if (!el) return "";
@@ -931,7 +931,7 @@ function findPhotoDropzone() {
 function isUnsafeClickTarget(el) {
   if (!el) return true;
   const t = shortText(el.getAttribute("aria-label") || el.textContent || "");
-  if (NEVER_CLICK_RE.test(t) || /\b(post|publish) listing\b/i.test(t)) return true;
+  if (NEVER_CLICK_RE.test(t) || /\b(post|publish) listing\b/i.test(t) || /^(buy|offer)\b/i.test(t)) return true;
   return isOffLimitsLabel(ownLabel(el)) || isOffLimitsLabel(t);
 }
 
@@ -1332,6 +1332,64 @@ async function fillPack(pack) {
   return mergePhotoResult(textResult, photoResult);
 }
 
+function postedApi() {
+  return typeof LotLinkerPosted !== "undefined" ? LotLinkerPosted : null;
+}
+
+function clickLabel(el) {
+  if (!el) return "";
+  return shortText(el.getAttribute("aria-label") || el.getAttribute("title") || el.textContent || "");
+}
+
+function rememberFillForPostWatch(pack) {
+  const api = postedApi();
+  const stock = pack?.stock;
+  if (!api?.rememberPendingFill || !stock) return;
+  api.rememberPendingFill(stock).catch(() => {});
+}
+
+function checkPendingPostSuccess() {
+  const api = postedApi();
+  if (!api?.maybeMarkPendingPosted) return;
+  const text = (document.body?.innerText || "").slice(0, 8000);
+  api.maybeMarkPendingPosted({ href: location.href, text }).catch(() => {});
+}
+
+function startPostedWatch() {
+  const api = postedApi();
+  if (!api || typeof chrome === "undefined" || !chrome.storage?.local) return;
+  if (globalThis.__lotLinkerPostedWatch) return;
+  globalThis.__lotLinkerPostedWatch = true;
+
+  document.addEventListener(
+    "click",
+    (e) => {
+      const el = e.target?.closest?.("button, [role=button], [role=menuitem], a, [tabindex]");
+      if (!el) return;
+      const lab = clickLabel(el);
+      if (api.isUserPublishClickLabel(lab)) {
+        api.noteUserClickedPost().catch(() => {});
+      }
+    },
+    true
+  );
+
+  const origPush = history.pushState;
+  const origReplace = history.replaceState;
+  history.pushState = function (...args) {
+    const r = origPush.apply(this, args);
+    checkPendingPostSuccess();
+    return r;
+  };
+  history.replaceState = function (...args) {
+    const r = origReplace.apply(this, args);
+    checkPendingPostSuccess();
+    return r;
+  };
+  window.addEventListener("popstate", () => checkPendingPostSuccess());
+  setInterval(checkPendingPostSuccess, 1200);
+}
+
 if (typeof globalThis !== "undefined") {
   globalThis.LotLinkerFill = {
     fillPack,
@@ -1344,6 +1402,8 @@ if (typeof globalThis !== "undefined") {
     findField,
     findDescriptionField,
     labelText,
+    startPostedWatch,
+    rememberFillForPostWatch,
   };
 }
 
@@ -1356,8 +1416,13 @@ if (typeof chrome !== "undefined" && chrome.runtime?.onMessage) {
     }
     Promise.resolve()
       .then(() => fillPack(msg.pack || {}))
-      .then((r) => sendResponse({ ok: true, ...r }))
+      .then((r) => {
+        rememberFillForPostWatch(msg.pack || {});
+        sendResponse({ ok: true, ...r });
+      })
       .catch((e) => sendResponse({ ok: false, error: String(e) }));
     return true;
   });
 }
+
+startPostedWatch();
