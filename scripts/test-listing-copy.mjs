@@ -95,7 +95,7 @@ assert.doesNotMatch(nissan.modelLine, /2026|Nissan/);
 assert.equal(nissan.title, "2026 Nissan Altima 2.5 SR | AWD | $30,470 | Oconomowoc WI");
 assert.deepEqual(bullets(nissan.body), [
   "Apple CarPlay / Android Auto",
-  "Blind Spot Monitor",
+  "360° Camera",
   "Power Seats",
   "AWD",
   "Leatherette Seats",
@@ -118,12 +118,16 @@ assertLayout(hyundai.body);
 
 const f150 = listing.fromPack(pack("PU1388"));
 assert.deepEqual(listing.keyEquipment(pack("PU1388")), [
-  "Heated Seats",
-  "Backup Camera",
+  "Heated Front Seats",
+  "Parking Sensors / Assist",
+  "Power Seats",
   "4WD",
+  "Leatherette Seats",
 ]);
-assert.ok(listing.needsResearch(pack("PU1388")));
+assert.equal(listing.needsResearch(pack("PU1388")), false);
 assertLayout(f150.body);
+const thinStock = "26HN1184";
+assert.ok(listing.needsResearch(pack(thinStock)));
 
 const junkOnly = listing.keyEquipment({
   body: "Standouts: Gasoline engine · Brake lights · Headlights · Seat belts · Airbags · AM/FM radio · Power windows · Automatic transmission · ABS · FWD · Torsen · Fox shocks · 3.73 axle ratio. Also: Bluetooth, Satellite Radio Ready.",
@@ -144,7 +148,7 @@ assert.ok(extracted.some((f) => /remote start/i.test(f)));
 assert.ok(extracted.some((f) => /power seats/i.test(f)));
 assert.ok(!extracted.some((f) => /gasoline|bluetooth|abs|torsen/i.test(f)));
 
-const researched = await listing.researchPack(pack("PU1388"), {
+const researched = await listing.researchPack(pack(thinStock), {
   timeoutMs: 2000,
   fetchFn: async (url) => {
     if (/nhtsa/i.test(String(url))) {
@@ -155,16 +159,16 @@ const researched = await listing.researchPack(pack("PU1388"), {
 });
 const after = listing.keyEquipment(researched);
 assert.ok(after.length <= 5);
-assert.ok(after.includes("Heated Seats"));
+assert.ok(after.includes("Heated Seats") || after.includes("Heated Front Seats"));
 assert.ok(after.includes("Apple CarPlay / Android Auto") || after.includes("Apple CarPlay"));
 assert.ok(after.includes("Power Seats"));
-assert.ok(after.length > listing.keyEquipment(pack("PU1388")).length, "research should add buyer features pack missed");
+assert.ok(after.length > listing.keyEquipment(pack(thinStock)).length, "research should add buyer features pack missed");
 
-const timedOut = await listing.researchPack(pack("PU1388"), {
+const timedOut = await listing.researchPack(pack(thinStock), {
   timeoutMs: 30,
   fetchFn: () => new Promise(() => {}),
 });
-assert.deepEqual(listing.keyEquipment(timedOut), listing.keyEquipment(pack("PU1388")));
+assert.deepEqual(listing.keyEquipment(timedOut), listing.keyEquipment(pack(thinStock)));
 
 assert.equal(listing.driveFromNhtsa({ Results: [{ DriveType: "FWD/Front-Wheel Drive" }] }), "");
 assert.equal(listing.driveFromNhtsa({ Results: [{ DriveType: "AWD/All-Wheel Drive" }] }), "AWD");
@@ -184,5 +188,5 @@ assert.ok(!carTypes.includes("Truck"));
 console.log("NISSAN 26NU0143 KEY EQUIPMENT\n" + bullets(nissan.body).map((b) => `• ${b}`).join("\n") + "\n");
 console.log("HYUNDAI 25HY024 KEY EQUIPMENT\n" + bullets(hyundai.body).map((b) => `• ${b}`).join("\n") + "\n");
 console.log("F150 PU1388 PACK ONLY\n" + listing.keyEquipment(pack("PU1388")).map((b) => `• ${b}`).join("\n") + "\n");
-console.log("F150 PU1388 AFTER RESEARCH\n" + after.map((b) => `• ${b}`).join("\n") + "\n");
+console.log(`${thinStock} AFTER RESEARCH\n` + after.map((b) => `• ${b}`).join("\n") + "\n");
 console.log("ok");
