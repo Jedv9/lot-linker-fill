@@ -3,6 +3,7 @@ on:
   push:
     paths:
       - "packs-part*.json"
+      - "nissan-delta-2026-09-09.json"
       - ".github/workflows/assemble-packs.yml"
   workflow_dispatch:
 permissions:
@@ -30,6 +31,19 @@ jobs:
               print("skip assemble: mixed generated dates", sorted(gens))
               raise SystemExit(0)
           gen = next(iter(gens))
+          delta_path = Path("nissan-delta-2026-09-09.json")
+          if delta_path.exists():
+              delta = json.loads(delta_path.read_text())
+              remove = set(delta.get("remove") or [])
+              packs = [p for p in packs if p.get("stock") not in remove]
+              have = {p.get("stock") for p in packs}
+              for item in delta.get("add") or []:
+                  stock = item.get("stock")
+                  if stock not in have:
+                      packs.append(item)
+                      have.add(stock)
+              if delta.get("generated"):
+                  gen = str(delta["generated"])
           out = {"generated": gen, "count": len(packs), "packs": packs,
                  "note": "photoUrls capped at 8 for GitHub Refresh; assembled from packs-part1..20"}
           Path("packs.json").write_text(json.dumps(out, separators=(",", ":")))
