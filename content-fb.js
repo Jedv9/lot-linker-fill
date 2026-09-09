@@ -1542,35 +1542,65 @@ function pickVehicleTypeTile(values) {
 
 function vehicleTypeLooksSet(values) {
   const list = (values || []).map((v) => shortText(v).toLowerCase()).filter(Boolean);
-  const el = findVehicleTypeControl();
-  if (el) {
-    const got = shortText(el.textContent || el.value || el.getAttribute?.("aria-label") || "").toLowerCase();
-    if (list.some((w) => got === w || got.includes(w) || w.includes(got) && got.length >= 3)) return true;
-    if (el.getAttribute?.("aria-checked") === "true" || el.checked) return true;
-  }
+  if (!list.length) return false;
+
   for (const tile of findVehicleTypeTiles()) {
     const checked =
       tile.getAttribute("aria-checked") === "true" ||
       tile.getAttribute("aria-selected") === "true" ||
-      tile.checked ||
+      tile.checked === true ||
       /\bselected\b/i.test(tile.className || "");
+    if (!checked) continue;
     const t = shortText(tile.getAttribute("aria-label") || tile.textContent || "").toLowerCase();
-    if (checked && list.some((w) => t === w || t.includes(w))) return true;
+    if (list.some((w) => t === w || t.includes(w))) return true;
   }
-  return false;
+
+  const el = findVehicleTypeControl();
+  if (!el) return false;
+  if (el.getAttribute?.("role") === "radiogroup") return false;
+  if (el instanceof HTMLSelectElement) {
+    const t = shortText(el.selectedOptions?.[0]?.textContent || el.value).toLowerCase();
+    return list.some((w) => t === w || t.includes(w));
+  }
+  const caption = shortChoiceCaption(el).toLowerCase();
+  const val = shortText(el.value).toLowerCase();
+  const got = val || caption;
+  if (!got || /^(vehicle type|type of vehicle|vehicle category|type)$/.test(got)) return false;
+  return list.some((w) => got === w || got.includes(w));
 }
 
 async function fillVehicleTypeFirst(pack) {
   const values = vehicleTypeChoiceValues(pack);
   if (vehicleTypeLooksSet(values)) return true;
+
   if (pickVehicleTypeTile(values)) {
     await delay(200);
-    return true;
+    if (vehicleTypeLooksSet(values)) return true;
   }
-  if (await fillChoiceAnyRetry(VEHICLE_TYPE_MATCHERS, values, VEHICLE_TYPE_EXCLUDE)) return true;
-  await delay(280);
-  if (pickVehicleTypeTile(values)) return true;
-  if (await fillChoiceAny(VEHICLE_TYPE_MATCHERS, values, VEHICLE_TYPE_EXCLUDE)) return true;
+
+  if (await fillChoiceAnyRetry(VEHICLE_TYPE_MATCHERS, values, VEHICLE_TYPE_EXCLUDE)) {
+    await delay(120);
+    if (vehicleTypeLooksSet(values)) return true;
+  }
+
+  const el = findVehicleTypeControl();
+  if (el && !isUnsafeClickTarget(el) && !isOffLimitsControl(el)) {
+    scrollElIntoView(el);
+    try {
+      el.click();
+    } catch {
+      /* ignore */
+    }
+    const opts = await waitForOptions();
+    if (opts.length) {
+      for (const v of values) {
+        if (pickOpenOption(v)) break;
+      }
+    }
+    if (pickVehicleTypeTile(values)) {
+      await delay(200);
+    }
+  }
   return vehicleTypeLooksSet(values);
 }
 
@@ -1625,8 +1655,9 @@ async function fillPackOnce(pack) {
   const specExclude = [...CHOICE_EXCLUDE, /\byear\b/, /\bmake\b/, /\bmodel\b/, /\bprice\b/, /\bmileage\b/, /vehicle type/];
 
   const typeOk = await fillVehicleTypeFirst(p);
-  mark("vehicleType", typeOk);
-  if (!typeOk) {
+  const typeStuck = typeOk && vehicleTypeLooksSet(vehicleTypeChoiceValues(p));
+  mark("vehicleType", typeStuck);
+  if (!typeStuck) {
     gateRemainingKeys(mark, p, listing);
     return {
       filled: [...new Set(filled)],

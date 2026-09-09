@@ -151,6 +151,8 @@
       host.append(field("Vehicle type", group), yearWrap, field("Make", make), field("Price", price), field("Model", model), field("Mileage", miles), field("VIN", vin));
 
       resetCounts();
+      LotLinkerFill.closeOpenListbox();
+      const escapedAfterClose = counts.documentEscape;
       const waited = await LotLinkerFill.waitForOptions({ tries: 8, delayMs: 80 });
       year.click();
       const afterWait = await LotLinkerFill.waitForOptions({ tries: 12, delayMs: 80 });
@@ -173,6 +175,7 @@
         marketClicks: counts.market,
         browseClicks: counts.browse,
         documentEscape: counts.documentEscape,
+        escapedAfterClose,
         waitBefore: waited.length,
         waitAfter: afterWait.length,
         formReady: LotLinkerFill.isVehicleFormReady(),

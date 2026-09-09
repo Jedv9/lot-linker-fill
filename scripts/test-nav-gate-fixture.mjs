@@ -54,6 +54,7 @@ assert.equal(tiles.postClicks, 0);
 assert.equal(tiles.nextClicks, 0);
 assert.equal(tiles.browseClicks, 0);
 assert.equal(tiles.documentEscape, 0, "waitForOptions path must not Escape-close the composer");
+assert.equal(tiles.escapedAfterClose, 0, "closeOpenListbox must not dispatch Escape on document");
 assert.equal(tiles.waitBefore, 0, "waitForOptions is empty before the delayed list opens");
 assert.ok(tiles.waitAfter >= 1, "waitForOptions must see delayed year options");
 
