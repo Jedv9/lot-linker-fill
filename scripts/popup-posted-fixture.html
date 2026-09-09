@@ -225,7 +225,79 @@
       document.body.dataset.report = JSON.stringify(report);
       document.body.dataset.reportReady = "1";
     }
-    run();
+    async function playDemo() {
+      const filter = document.getElementById("fPosted");
+      const statusEl = document.getElementById("status");
+      const say = (t) => { if (statusEl) statusEl.textContent = t; };
+      await wait(800);
+      say("Default: Not posted · 2 left");
+      await wait(1400);
+      document.querySelector('#list .item[data-stock="26NU0143"] .mark')?.click();
+      await wait(900);
+      say("Marked 26NU0143 posted · 1 left");
+      await wait(1200);
+      filter.value = "posted";
+      filter.dispatchEvent(new Event("change"));
+      await wait(400);
+      say("Filter: Posted");
+      await wait(1200);
+      filter.value = "all";
+      filter.dispatchEvent(new Event("change"));
+      await wait(400);
+      say("Filter: All · posted + not posted");
+      await wait(1200);
+      document.querySelector('#list .item[data-stock="26NU0156"] .mark')?.click();
+      await wait(700);
+      filter.value = "not";
+      filter.dispatchEvent(new Event("change"));
+      await wait(400);
+      say("Both posted · 0 left");
+      await wait(1200);
+      filter.value = "all";
+      filter.dispatchEvent(new Event("change"));
+      await wait(400);
+      document.querySelector('#list .item[data-stock="26NU0143"] .mark')?.click();
+      await wait(700);
+      say("Unmarked 26NU0143 · search still works");
+      const q = document.getElementById("q");
+      q.value = "0156";
+      q.dispatchEvent(new Event("input"));
+      await wait(1200);
+      q.value = "";
+      q.dispatchEvent(new Event("input"));
+      await wait(400);
+      document.getElementById("refreshInventory").click();
+      await wait(500);
+      say("Refresh packs kept posted marks");
+      filter.value = "all";
+      filter.dispatchEvent(new Event("change"));
+    }
+
+    const params = new URLSearchParams(location.search);
+    if (params.get("demo") === "1") {
+      document.documentElement.dataset.report = JSON.stringify({ ok: true, demo: true });
+      wait(250).then(() => playDemo());
+    } else if (params.get("shot")) {
+      document.documentElement.dataset.report = JSON.stringify({ ok: true, shot: params.get("shot") });
+      wait(250).then(async () => {
+        const shot = params.get("shot");
+        const filter = document.getElementById("fPosted");
+        if (shot === "after-mark" || shot === "posted" || shot === "all") {
+          document.querySelector('#list .item[data-stock="26NU0143"] .mark')?.click();
+          await wait(80);
+        }
+        if (shot === "posted") {
+          filter.value = "posted";
+          filter.dispatchEvent(new Event("change"));
+        }
+        if (shot === "all") {
+          filter.value = "all";
+          filter.dispatchEvent(new Event("change"));
+        }
+      });
+    } else {
+      run();
+    }
   </script>
 </body>
 </html>
