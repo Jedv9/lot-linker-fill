@@ -12,16 +12,21 @@ const manifest = JSON.parse(readFileSync(new URL("../manifest.json", import.meta
 const background = readFileSync(new URL("../background.js", import.meta.url), "utf8");
 const zipBuild = readFileSync(new URL("./build-zip.sh", import.meta.url), "utf8");
 
-assert.equal(manifest.version, "2.3.2");
-assert.deepEqual(manifest.content_scripts[0].js, ["listing-copy.js", "photos.js", "posted.js", "content-fb.js"]);
+assert.equal(manifest.version, "2.3.3");
+assert.deepEqual(manifest.content_scripts[0].js, ["listing-copy.js", "photos.js", "posted.js", "fb-nav.js", "content-fb.js"]);
 assert.equal(manifest.background.service_worker, "background.js");
 assert.ok(manifest.permissions.includes("downloads"), "fallback save uses chrome.downloads");
+assert.ok(manifest.permissions.includes("tabs"), "Fill navigates the Facebook tab");
+assert.ok(manifest.permissions.includes("scripting"), "re-inject content after create/vehicle navigation");
 assert.ok(manifest.host_permissions.some((h) => /vehicle-images\.carscommerce\.inc/.test(h)));
 assert.ok(manifest.host_permissions.some((h) => /facebook\.com/.test(h)));
 assert.match(background, /LOT_LINKER_PREPARE_PHOTOS/);
+assert.match(background, /LOT_LINKER_FILL_TAB/);
+assert.match(background, /marketplace\/create\/vehicle/);
 assert.doesNotMatch(background, /chrome\.downloads/);
 assert.match(zipBuild, /lot-linker-fill/);
 assert.match(zipBuild, /posted\.js/);
+assert.match(zipBuild, /fb-nav\.js/);
 
 assert.match(content, /LOT_LINKER_FILL/);
 assert.match(content, /Never VIN/);
@@ -51,6 +56,13 @@ assert.match(content, /"interior"/);
 assert.match(content, /"fuel"/);
 assert.match(content, /"vehicleType"/);
 assert.match(content, /Car\/Truck/);
+assert.match(content, /fillVehicleTypeFirst/);
+assert.match(content, /gated/);
+assert.match(content, /needNavigate/);
+assert.match(content, /isFacebookHomePath/);
+assert.match(content, /LOT_LINKER_FORM_READY/);
+assert.match(content, /NEVER send Escape|never send Escape|dumps Jed on home/i);
+assert.doesNotMatch(content, /document\.dispatchEvent\(new KeyboardEvent\("keydown"/);
 assert.doesNotMatch(content, /fillText\(\s*\[\s*\/\\bvin\\b/);
 assert.match(content, /isProtectedLabel/);
 assert.match(content, /mark\(\s*"model"/);
@@ -91,8 +103,9 @@ assert.doesNotMatch(popupHtml, /Download photos|Copy title|Import ALL-EASY-PASTE
 assert.match(popupHtml, />Fill</);
 assert.match(popupHtml, /Save photos \(fallback\)/);
 assert.match(popupHtml, /id="mPick"/);
-assert.match(popup, /LOT_LINKER_FILL/);
+assert.match(popup, /LOT_LINKER_FILL_TAB/);
 assert.match(popup, /res\.missed/);
+assert.match(popup, /Opening Marketplace create vehicle listing/);
 assert.match(popup, /pickerLabel|packPickerLabel/);
 assert.match(popup, /savePhotos/);
 assert.doesNotMatch(popup, /storeShort/);
@@ -113,7 +126,13 @@ const refreshBlock = popup.slice(popup.indexOf("refreshInventory"), popup.indexO
 assert.doesNotMatch(refreshBlock, /postedByStock/);
 
 const fillOnce = content.slice(content.indexOf("async function fillPackOnce"), content.indexOf("function mergePhotoResult"));
-const fillKeys = ["vehicleType", "year", "make", "model", "price", "mileage", "bodyStyle", "exterior", "interior", "fuel", "description"];
+const fillKeys = ["vehicleType", "year", "make", "price", "model", "mileage", "bodyStyle", "exterior", "interior", "fuel", "description"];
+assert.match(fillOnce, /fillVehicleTypeFirst/);
+assert.match(fillOnce, /if \(!typeOk\)/);
+assert.match(fillOnce, /gateRemainingKeys/);
+assert.match(content, /async function waitForOptions/);
+assert.match(content, /opts = await waitForOptions/);
+assert.match(content, /let opts = await waitForOptions/);
 let cursor = 0;
 for (const key of fillKeys) {
   const idx = fillOnce.indexOf(`"${key}"`, cursor);

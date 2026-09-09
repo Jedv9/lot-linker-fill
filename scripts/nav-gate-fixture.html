@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Lot Linker nav / vehicle-type gate fixture</title>
+</head>
+<body>
+  <header role="banner">
+    <a id="fb-logo" href="https://www.facebook.com/">Facebook</a>
+    <a id="fb-home" href="/">Home</a>
+    <a id="fb-market" href="https://www.facebook.com/marketplace">Marketplace</a>
+    <button type="button" id="fb-post" aria-label="Post">Post</button>
+    <button type="button" id="fb-next" aria-label="Next">Next</button>
+  </header>
+  <nav role="navigation">
+    <a id="cars-browse" href="https://www.facebook.com/marketplace/category/vehicles">Cars & trucks</a>
+  </nav>
+
+  <main id="form-host"></main>
+  <div id="status"></div>
+
+  <script src="../listing-copy.js"></script>
+  <script src="../photos.js"></script>
+  <script src="../fb-nav.js"></script>
+  <script src="../content-fb.js"></script>
+  <script>
+    const counts = { home: 0, post: 0, next: 0, market: 0, browse: 0, documentEscape: 0 };
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") counts.documentEscape += 1;
+    }, true);
+
+    function track(id, key) {
+      document.getElementById(id).addEventListener("click", (e) => {
+        e.preventDefault();
+        counts[key] += 1;
+      });
+    }
+    track("fb-logo", "home");
+    track("fb-home", "home");
+    track("fb-market", "market");
+    track("cars-browse", "browse");
+    track("fb-post", "post");
+    track("fb-next", "next");
+
+    const pack = {
+      stock: "PU1392",
+      year: "2012",
+      make: "Ford",
+      model: "F-150",
+      trim: "SVT Raptor",
+      bodyStyle: "Crew Cab 4D",
+      mileage: "87000",
+      vin: "1FTWX1R64CFA00000",
+      condition: "USED",
+      exterior: "Black",
+      interior: "Black",
+      fuel: "Gasoline",
+      drivetrain: "4WD",
+      price: "26900",
+      rooftop: "Lake Country Nissan",
+      body: "USED 2012 Ford F-150 SVT Raptor · 4WD. Located at Lake Country Nissan. Stock PU1392, 87,000 miles. Standouts: Heated Seats · Backup Camera · 4WD."
+    };
+
+    function el(tag, attrs, text) {
+      const n = document.createElement(tag);
+      Object.entries(attrs || {}).forEach(([k, v]) => n.setAttribute(k, v));
+      if (text != null) n.textContent = text;
+      return n;
+    }
+
+    function field(label, control) {
+      const wrap = el("div", { class: "fb-field" });
+      wrap.appendChild(el("span", {}, label));
+      wrap.appendChild(control);
+      return wrap;
+    }
+
+    function resetCounts() {
+      Object.keys(counts).forEach((k) => { counts[k] = 0; });
+    }
+
+    async function scenarioGate() {
+      const host = document.getElementById("form-host");
+      host.innerHTML = "";
+      const year = el("input", { id: "year", "aria-label": "Year" });
+      const make = el("input", { id: "make", "aria-label": "Make" });
+      const price = el("input", { id: "price", "aria-label": "Price" });
+      const model = el("input", { id: "model", "aria-label": "Model" });
+      const miles = el("input", { id: "mileage", "aria-label": "Mileage" });
+      const vin = el("input", { id: "vin", "aria-label": "VIN", value: "DO-NOT-TOUCH" });
+      host.append(field("Year", year), field("Make", make), field("Price", price), field("Model", model), field("Mileage", miles), field("VIN", vin));
+      resetCounts();
+      const result = await LotLinkerFill.fillPack(pack);
+      return {
+        label: "gate",
+        gated: Boolean(result.gated),
+        filled: result.filled,
+        missed: result.missed,
+        year: year.value,
+        make: make.value,
+        price: price.value,
+        model: model.value,
+        mileage: miles.value,
+        vin: vin.value,
+        homeClicks: counts.home,
+        postClicks: counts.post,
+        nextClicks: counts.next,
+        marketClicks: counts.market,
+        browseClicks: counts.browse,
+        documentEscape: counts.documentEscape,
+        formReady: LotLinkerFill.isVehicleFormReady(),
+      };
+    }
+
+    async function scenarioTiles() {
+      const host = document.getElementById("form-host");
+      host.innerHTML = "";
+      const group = el("div", { role: "radiogroup", "aria-label": "Vehicle type" });
+      const car = el("div", { role: "radio", "aria-label": "Car/Truck", tabindex: "0" }, "Car/Truck");
+      const boat = el("div", { role: "radio", "aria-label": "Boat", tabindex: "0" }, "Boat");
+      car.addEventListener("click", () => {
+        car.setAttribute("aria-checked", "true");
+        boat.setAttribute("aria-checked", "false");
+        car.dataset.value = "Car/Truck";
+      });
+      group.append(car, boat);
+
+      const year = el("div", { id: "year", role: "combobox", "aria-haspopup": "listbox", tabindex: "0" }, "Year");
+      const list = el("div", { role: "listbox" });
+      list.hidden = true;
+      ["2012", "2013"].forEach((v) => {
+        const o = el("div", { role: "option" }, v);
+        o.addEventListener("click", (e) => {
+          e.stopPropagation();
+          year.textContent = v;
+          list.hidden = true;
+        });
+        list.appendChild(o);
+      });
+      year.addEventListener("click", () => {
+        setTimeout(() => { list.hidden = false; }, 350);
+      });
+      const make = el("input", { id: "make", "aria-label": "Make" });
+      const price = el("input", { id: "price", "aria-label": "Price" });
+      const model = el("input", { id: "model", "aria-label": "Model" });
+      const miles = el("input", { id: "mileage", "aria-label": "Mileage" });
+      const vin = el("input", { id: "vin", "aria-label": "VIN", value: "DO-NOT-TOUCH" });
+      const yearWrap = field("Year", year);
+      yearWrap.appendChild(list);
+      host.append(field("Vehicle type", group), yearWrap, field("Make", make), field("Price", price), field("Model", model), field("Mileage", miles), field("VIN", vin));
+
+      resetCounts();
+      const waited = await LotLinkerFill.waitForOptions({ tries: 8, delayMs: 80 });
+      year.click();
+      const afterWait = await LotLinkerFill.waitForOptions({ tries: 12, delayMs: 80 });
+      const result = await LotLinkerFill.fillPack(pack);
+      return {
+        label: "tiles",
+        gated: Boolean(result.gated),
+        filled: result.filled,
+        missed: result.missed,
+        vehicleType: car.getAttribute("aria-checked") === "true" ? "Car/Truck" : "",
+        year: year.textContent.trim(),
+        make: make.value,
+        price: price.value,
+        model: model.value,
+        mileage: miles.value,
+        vin: vin.value,
+        homeClicks: counts.home,
+        postClicks: counts.post,
+        nextClicks: counts.next,
+        marketClicks: counts.market,
+        browseClicks: counts.browse,
+        documentEscape: counts.documentEscape,
+        waitBefore: waited.length,
+        waitAfter: afterWait.length,
+        formReady: LotLinkerFill.isVehicleFormReady(),
+      };
+    }
+
+    (async () => {
+      const gate = await scenarioGate();
+      const tiles = await scenarioTiles();
+      const report = { ok: true, gate, tiles };
+      window.__lotLinkerReport = report;
+      document.body.dataset.report = JSON.stringify(report);
+      document.body.dataset.reportReady = "1";
+      document.getElementById("status").textContent = JSON.stringify(report);
+    })();
+  </script>
+</body>
+</html>

@@ -173,6 +173,14 @@ assert.equal(listing.vehicleType({ bodyStyle: "Crew Cab 4D", model: "Santa Cruz"
 assert.equal(listing.vehicleType({ bodyStyle: "Hatchback 4D", model: "Soul" }), "hatchback");
 assert.equal(listing.vehicleType({ bodyStyle: "Passenger Van 4D", model: "Pacifica" }), "van");
 
+const truckTypes = listing.marketplaceVehicleTypeValues({ bodyStyle: "Crew Cab 4D", model: "F-150" });
+assert.equal(truckTypes[0], "Car/Truck");
+assert.ok(truckTypes.includes("Truck"));
+const carTypes = listing.marketplaceVehicleTypeValues({ bodyStyle: "Sedan 4D", model: "Altima" });
+assert.equal(carTypes[0], "Car/Truck");
+assert.ok(carTypes.includes("Car"));
+assert.ok(!carTypes.includes("Truck"));
+
 console.log("NISSAN 26NU0143 KEY EQUIPMENT\n" + bullets(nissan.body).map((b) => `• ${b}`).join("\n") + "\n");
 console.log("HYUNDAI 25HY024 KEY EQUIPMENT\n" + bullets(hyundai.body).map((b) => `• ${b}`).join("\n") + "\n");
 console.log("F150 PU1388 PACK ONLY\n" + listing.keyEquipment(pack("PU1388")).map((b) => `• ${b}`).join("\n") + "\n");

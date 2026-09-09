@@ -1,7 +1,24 @@
-// Lot Linker Fill — Vehicle type (Car/Truck) first, then Year/Make/Price/Mileage/body/colors/fuel + Model + description + photos.
+// Lot Linker Fill — navigate to create/vehicle if needed, Vehicle type first, then the rest.
 // Never VIN. Never clean-title checkbox. Never vehicle condition. Never Post.
+// Never dispatch Escape on document (that closes FB's create dialog → home).
+function fbNav() {
+  return typeof LotLinkerFbNav !== "undefined" ? LotLinkerFbNav : null;
+}
+
 function isMarketplacePath() {
   return /marketplace/i.test(location.pathname + location.href);
+}
+
+function isCreateVehicleListingPath() {
+  const nav = fbNav();
+  if (nav?.isCreateVehicleListingUrl) return nav.isCreateVehicleListingUrl(location.href);
+  return /\/marketplace\/create\/vehicle/i.test(location.pathname + location.href);
+}
+
+function isFacebookHomePath() {
+  const nav = fbNav();
+  if (nav?.isFacebookHomeUrl) return nav.isFacebookHomeUrl(location.href);
+  return !/marketplace/i.test(location.pathname) && /^\/$|^\/home\.php$/i.test(location.pathname || "");
 }
 
 const DESC_MATCHERS = [
@@ -791,12 +808,17 @@ function fillNativeSelect(el, value) {
   return true;
 }
 
-function visibleChoiceOptions() {
+function visibleChoiceOptions(root) {
+  const scope = root && root.querySelectorAll ? root : document;
   return [
-    ...document.querySelectorAll(
+    ...scope.querySelectorAll(
       '[role="option"], [role="menuitem"], [role="menuitemradio"], li[role="option"], [role="listbox"] [role="option"], [role="listbox"] > div, [role="listbox"] > li'
     ),
-  ].filter((o) => !isUnsafeClickTarget(o) && isDisplayed(o) && optionText(o));
+  ].filter((o) => {
+    if (isUnsafeClickTarget(o) || !isDisplayed(o) || !optionText(o)) return false;
+    if (o.closest?.("[role=banner], [role=navigation], header") && !o.closest?.("[role=listbox]")) return false;
+    return true;
+  });
 }
 
 async function waitForOptions({ tries = 12, delayMs = 120 } = {}) {
@@ -811,12 +833,24 @@ async function waitForOptions({ tries = 12, delayMs = 120 } = {}) {
 }
 
 function closeOpenListbox() {
-  try {
-    const ev = { key: "Escape", code: "Escape", keyCode: 27, which: 27, bubbles: true, cancelable: true };
-    document.activeElement?.dispatchEvent(new KeyboardEvent("keydown", ev));
-    document.dispatchEvent(new KeyboardEvent("keydown", ev));
-  } catch {
-    /* ignore */
+  // NEVER send Escape to document/window — Facebook's create-vehicle
+  // composer is a dialog; Escape dismisses it and dumps Jed on home.
+  const expanded = document.querySelector('[role="combobox"][aria-expanded="true"]');
+  if (expanded && !isUnsafeClickTarget(expanded)) {
+    try {
+      expanded.click();
+    } catch {
+      /* ignore */
+    }
+    return;
+  }
+  const lists = [...document.querySelectorAll('[role="listbox"]')].filter((n) => isDisplayed(n) && !n.hidden);
+  for (const list of lists) {
+    try {
+      list.hidden = true;
+    } catch {
+      /* ignore */
+    }
   }
 }
 
@@ -1084,7 +1118,11 @@ function delay(ms) {
 const PHOTO_LABEL_RE = /\b(photo|photos|picture|pictures|image|images|gallery|media)\b/i;
 const PHOTO_EXCLUDE_RE = /\b(profile|avatar|cover photo|comment|messenger|story)\b/i;
 const PHOTO_REVEAL_RE = /^(add photos?|upload photos?|add pictures?|choose (files?|photos?)|photos|add media)$/i;
-const NEVER_CLICK_RE = /^(post|publish|next|submit|share|buy|offer|make offer|buy now|create listing|publish listing)$/i;
+const NEVER_CLICK_RE =
+  /^(post|publish|next|submit|share|buy|offer|make offer|buy now|create listing|publish listing|home|facebook|close|cancel|back|go back|exit|discard|not now)$/i;
+const HOME_CLICK_RE = /^(home|facebook|close composer|close dialog)$/i;
+const CHROME_NAV_RE =
+  /^(marketplace|selling|inbox|notifications|menu|account|profile|search facebook|facebook search)$/i;
 
 function photoContext(el) {
   if (!el) return "";
@@ -1151,10 +1189,40 @@ function findPhotoDropzone() {
   return null;
 }
 
+function hrefOf(el) {
+  if (!el) return "";
+  const a = el.closest?.("a[href]") || (el.tagName === "A" ? el : null);
+  return a?.getAttribute?.("href") || a?.href || "";
+}
+
+function isAwayHref(href) {
+  const raw = String(href || "").trim();
+  if (!raw || raw === "#" || /^javascript:/i.test(raw)) return false;
+  const nav = fbNav();
+  if (nav?.hrefLooksLikeHome && nav.hrefLooksLikeHome(raw, location.href)) return true;
+  if (raw === "/" || raw === "https://www.facebook.com/" || raw === "https://facebook.com/") return true;
+  try {
+    const u = new URL(raw, location.href);
+    if (nav?.isFacebookHomeUrl && nav.isFacebookHomeUrl(u.href)) return true;
+    if (nav?.isMarketplaceBrowseUrl && nav.isMarketplaceBrowseUrl(u.href)) return true;
+    if (nav?.isCreateVehicleListingUrl && nav.isCreateVehicleListingUrl(u.href)) return false;
+    if (nav?.isFacebookUrl && nav.isFacebookUrl(u.href) && !nav.isCreateVehicleListingUrl(u.href)) return true;
+    if (u.pathname === "/" || u.pathname === "") return true;
+  } catch {
+    return raw === "/";
+  }
+  return false;
+}
+
 function isUnsafeClickTarget(el) {
   if (!el) return true;
-  const t = shortText(el.getAttribute("aria-label") || el.textContent || "");
-  if (NEVER_CLICK_RE.test(t) || /\b(post|publish) listing\b/i.test(t) || /^(buy|offer)\b/i.test(t)) return true;
+  if (isAwayHref(hrefOf(el))) return true;
+  const t = shortText(el.getAttribute("aria-label") || el.getAttribute("title") || el.textContent || "");
+  if (NEVER_CLICK_RE.test(t) || HOME_CLICK_RE.test(t) || CHROME_NAV_RE.test(t)) return true;
+  if (/\b(post|publish) listing\b/i.test(t) || /^(buy|offer)\b/i.test(t)) return true;
+  if (el.closest?.("[role=banner], [role=navigation], header")) {
+    if (!el.closest?.("[role=dialog], [role=main], form, .fb-field, .fb-specs, .fb-composer")) return true;
+  }
   return isOffLimitsLabel(ownLabel(el)) || isOffLimitsLabel(t);
 }
 
@@ -1386,9 +1454,167 @@ function markIfPresent(mark, key, packHas, ok) {
   mark(key, ok);
 }
 
+const VEHICLE_TYPE_MATCHERS = [
+  /^vehicle type$/,
+  /\bvehicle type\b/,
+  /type of vehicle/,
+  /what (type|kind) of vehicle/,
+  /^vehicle category$/,
+];
+
+const VEHICLE_TYPE_EXCLUDE = [
+  ...CHOICE_EXCLUDE,
+  /\byear\b/,
+  /\bmake\b/,
+  /\bmodel\b/,
+  /\bvin\b/,
+  /body style/,
+  /\bprice\b/,
+];
+
+const VEHICLE_TYPE_TILE_RE =
+  /^(car\/truck|car\s*\/\s*truck|cars?\s*(&|and)\s*trucks?|car|truck|pickup(\s*truck)?)$/i;
+
+function vehicleTypeChoiceValues(pack) {
+  if (typeof LotLinkerListing !== "undefined" && LotLinkerListing.marketplaceVehicleTypeValues) {
+    return LotLinkerListing.marketplaceVehicleTypeValues(pack);
+  }
+  return ["Car/Truck", "Car / Truck", "Car", "Truck"];
+}
+
+function findVehicleTypeControl() {
+  return (
+    findChoiceByNearbyLabel(VEHICLE_TYPE_MATCHERS, VEHICLE_TYPE_EXCLUDE) ||
+    findChoiceControl(VEHICLE_TYPE_MATCHERS, VEHICLE_TYPE_EXCLUDE) ||
+    findField(VEHICLE_TYPE_MATCHERS, { exclude: VEHICLE_TYPE_EXCLUDE }) ||
+    findVehicleTypeTiles()[0] ||
+    null
+  );
+}
+
+function findVehicleTypeTiles() {
+  const nodes = [
+    ...document.querySelectorAll(
+      '[role=radio], [role=tab], [role=option], [aria-checked], input[type=radio], button, [role=button], label'
+    ),
+  ];
+  const hits = [];
+  for (const el of nodes) {
+    if (isUnsafeClickTarget(el) || isAwayHref(hrefOf(el))) continue;
+    const radio = el.matches?.("input[type=radio]") || el.querySelector?.("input[type=radio]");
+    if (!radio && !isDisplayed(el)) continue;
+    const t = shortText(el.getAttribute("aria-label") || el.textContent || "");
+    if (!t || t.length > 48) continue;
+    if (!VEHICLE_TYPE_TILE_RE.test(t)) continue;
+    hits.push(el);
+  }
+  return hits;
+}
+
+function pickVehicleTypeTile(values) {
+  const tiles = findVehicleTypeTiles();
+  if (!tiles.length) return false;
+  const list = [...new Set((values || []).map((v) => String(v || "").trim()).filter(Boolean))];
+  for (const want of list) {
+    const w = shortText(want).toLowerCase();
+    const scored = tiles
+      .map((el) => {
+        const t = shortText(el.getAttribute("aria-label") || el.textContent || "").toLowerCase();
+        let score = 0;
+        if (t === w) score = 3;
+        else if (t.startsWith(w) || (w.startsWith(t) && t.length >= 3)) score = 2;
+        else if (t.includes(w) || (w.includes(t) && t.length >= 3)) score = 1;
+        return { el, score };
+      })
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score);
+    const hit = scored[0]?.el;
+    if (!hit || isUnsafeClickTarget(hit)) continue;
+    try {
+      hit.click();
+    } catch {
+      continue;
+    }
+    return true;
+  }
+  return false;
+}
+
+function vehicleTypeLooksSet(values) {
+  const list = (values || []).map((v) => shortText(v).toLowerCase()).filter(Boolean);
+  const el = findVehicleTypeControl();
+  if (el) {
+    const got = shortText(el.textContent || el.value || el.getAttribute?.("aria-label") || "").toLowerCase();
+    if (list.some((w) => got === w || got.includes(w) || w.includes(got) && got.length >= 3)) return true;
+    if (el.getAttribute?.("aria-checked") === "true" || el.checked) return true;
+  }
+  for (const tile of findVehicleTypeTiles()) {
+    const checked =
+      tile.getAttribute("aria-checked") === "true" ||
+      tile.getAttribute("aria-selected") === "true" ||
+      tile.checked ||
+      /\bselected\b/i.test(tile.className || "");
+    const t = shortText(tile.getAttribute("aria-label") || tile.textContent || "").toLowerCase();
+    if (checked && list.some((w) => t === w || t.includes(w))) return true;
+  }
+  return false;
+}
+
+async function fillVehicleTypeFirst(pack) {
+  const values = vehicleTypeChoiceValues(pack);
+  if (vehicleTypeLooksSet(values)) return true;
+  if (pickVehicleTypeTile(values)) {
+    await delay(200);
+    return true;
+  }
+  if (await fillChoiceAnyRetry(VEHICLE_TYPE_MATCHERS, values, VEHICLE_TYPE_EXCLUDE)) return true;
+  await delay(280);
+  if (pickVehicleTypeTile(values)) return true;
+  if (await fillChoiceAny(VEHICLE_TYPE_MATCHERS, values, VEHICLE_TYPE_EXCLUDE)) return true;
+  return vehicleTypeLooksSet(values);
+}
+
+function isVehicleFormReady() {
+  return Boolean(findVehicleTypeControl());
+}
+
+async function waitForVehicleForm({ tries = 25, delayMs = 200 } = {}) {
+  for (let i = 0; i < tries; i++) {
+    if (isVehicleFormReady()) return true;
+    await delay(delayMs);
+  }
+  return isVehicleFormReady();
+}
+
+async function waitForDetailsFields({ tries = 15, delayMs = 200 } = {}) {
+  const yearMatchers = [/^year$/, /\byear\b/, /vehicle year/, /model year/];
+  for (let i = 0; i < tries; i++) {
+    const year =
+      findChoiceByNearbyLabel(yearMatchers, CHOICE_EXCLUDE) ||
+      findChoiceControl(yearMatchers, CHOICE_EXCLUDE);
+    if (year) return true;
+    await delay(delayMs);
+  }
+  return false;
+}
+
+function gateRemainingKeys(mark, pack, listing) {
+  const p = pack || {};
+  markIfPresent(mark, "year", yearCandidates(p).length > 0, false);
+  markIfPresent(mark, "make", !isBlankPackValue(p.make), false);
+  markIfPresent(mark, "price", Boolean(priceDigits(p)), false);
+  mark("model", false);
+  markIfPresent(mark, "mileage", Boolean(mileageDigits(p)), false);
+  markIfPresent(mark, "bodyStyle", bodyStyleCandidates(p).length > 0, false);
+  markIfPresent(mark, "exterior", !isBlankPackValue(p.exterior) || !isBlankPackValue(p.exteriorFb), false);
+  markIfPresent(mark, "interior", !isBlankPackValue(p.interior) || !isBlankPackValue(p.interiorFb), false);
+  markIfPresent(mark, "fuel", fuelCandidates(p).length > 0, false);
+  mark("description", false);
+}
+
 async function fillPackOnce(pack) {
-  // FIRST Vehicle type = Car/Truck, then Year, Make, Price, Mileage, Body style,
-  // Exterior color, Interior color, Fuel, Model title line, Description.
+  // FIRST Vehicle type (Car/Truck from pack) MUST succeed. Then Year, Make,
+  // Price, Model, Mileage, Body style, Exterior, Interior, Fuel, Description.
   // Never VIN. Never clean-title checkbox. Never vehicle condition.
   const p = pack || {};
   const listing = listingFromPack(p);
@@ -1398,15 +1624,22 @@ async function fillPackOnce(pack) {
   const modelLine = listing.modelLine || "";
   const specExclude = [...CHOICE_EXCLUDE, /\byear\b/, /\bmake\b/, /\bmodel\b/, /\bprice\b/, /\bmileage\b/, /vehicle type/];
 
-  mark(
-    "vehicleType",
-    await fillChoiceAny(
-      [/^vehicle type$/, /\bvehicle type\b/],
-      ["Car/Truck", "Car / Truck"],
-      [...CHOICE_EXCLUDE, /\byear\b/, /\bmake\b/, /\bmodel\b/, /\bvin\b/, /body style/, /\bprice\b/]
-    )
-  );
+  const typeOk = await fillVehicleTypeFirst(p);
+  mark("vehicleType", typeOk);
+  if (!typeOk) {
+    gateRemainingKeys(mark, p, listing);
+    return {
+      filled: [...new Set(filled)],
+      missed: [...new Set(missed)],
+      modelLine,
+      title: listing.title,
+      descriptionHit: "",
+      gated: true,
+      notes: "Vehicle type must succeed before other fields. Never VIN. You hit Post.",
+    };
+  }
   await delay(400);
+  await waitForDetailsFields();
 
   const yearVals = yearCandidates(p);
   markIfPresent(
@@ -1430,11 +1663,6 @@ async function fillPackOnce(pack) {
   );
   if (makeVal) await delay(150);
 
-  mark(
-    "model",
-    fillText([/^model$/, /\bvehicle model\b/, /\bmodel\b/], modelLine, MODEL_EXCLUDE, "single")
-  );
-
   const price = priceDigits(p);
   markIfPresent(
     mark,
@@ -1446,6 +1674,11 @@ async function fillPackOnce(pack) {
       [/mileage/, /odometer/, /description/, /\bmodel\b/, /year/, /make/, /\bvin\b/],
       "single"
     )
+  );
+
+  mark(
+    "model",
+    fillText([/^model$/, /\bvehicle model\b/, /\bmodel\b/], modelLine, MODEL_EXCLUDE, "single")
   );
 
   const miles = mileageDigits(p);
@@ -1521,7 +1754,7 @@ async function fillPackOnce(pack) {
     modelLine,
     title: listing.title,
     descriptionHit: desc.via || "",
-    notes: "Vehicle type first, then Year/Make/Price/Mileage/body/colors/fuel + Model + description + photos. Never VIN. You hit Post.",
+    notes: "Vehicle type first, then Year/Make/Price/Model/Mileage/body/colors/fuel + description + photos. Never VIN. You hit Post.",
   };
 }
 
@@ -1538,7 +1771,7 @@ function mergePhotoResult(textResult, photoResult) {
     filled: [...new Set(filled)],
     missed: [...new Set(missed)],
     photos,
-    notes: "Vehicle type first, then Year/Make/Price/Mileage/body/colors/fuel + Model + description + photos. Never VIN. You hit Post.",
+    notes: "Vehicle type first, then Year/Make/Price/Model/Mileage/body/colors/fuel + description + photos. Never VIN. You hit Post.",
   };
 }
 
@@ -1546,7 +1779,6 @@ async function fillPack(pack) {
   let textResult = await fillPackOnce(pack);
   const retryKeys = [
     "vehicleType",
-    "description",
     "year",
     "make",
     "price",
@@ -1556,11 +1788,17 @@ async function fillPack(pack) {
     "exterior",
     "interior",
     "fuel",
+    "description",
   ].filter((k) => textResult.missed.includes(k));
   if (retryKeys.length) {
-    revealDescriptionArea();
-    await delay(280);
-    textResult = await fillPackOnce(pack);
+    if (textResult.gated) {
+      await delay(280);
+      textResult = await fillPackOnce(pack);
+    } else {
+      revealDescriptionArea();
+      await delay(280);
+      textResult = await fillPackOnce(pack);
+    }
   }
   const photoResult = await fillPhotos(pack || {});
   return mergePhotoResult(textResult, photoResult);
@@ -1633,6 +1871,17 @@ if (typeof globalThis !== "undefined") {
     assignFilesToInput,
     findPhotoFileInput,
     isMarketplacePath,
+    isCreateVehicleListingPath,
+    isFacebookHomePath,
+    isVehicleFormReady,
+    findVehicleTypeControl,
+    fillVehicleTypeFirst,
+    vehicleTypeChoiceValues,
+    waitForVehicleForm,
+    waitForOptions,
+    isUnsafeClickTarget,
+    isAwayHref,
+    closeOpenListbox,
     findField,
     findDescriptionField,
     findChoiceByNearbyLabel,
@@ -1641,7 +1890,6 @@ if (typeof globalThis !== "undefined") {
     mergedColorCandidates,
     yearCandidates,
     closestYearValue,
-    waitForOptions,
     bodyStyleCandidates,
     labelText,
     startPostedWatch,
@@ -1649,19 +1897,77 @@ if (typeof globalThis !== "undefined") {
   };
 }
 
+function createVehicleUrl() {
+  const nav = fbNav();
+  return nav?.createVehicleListingUrl ? nav.createVehicleListingUrl() : "https://www.facebook.com/marketplace/create/vehicle";
+}
+
+function fillBlockedByLocation() {
+  if (isFacebookHomePath()) {
+    return {
+      ok: false,
+      needNavigate: true,
+      url: createVehicleUrl(),
+      error: "On Facebook home — open create vehicle listing instead",
+    };
+  }
+  if (isCreateVehicleListingPath()) return null;
+  if (isVehicleFormReady()) return null;
+  if (isMarketplacePath() && !isVehicleFormReady()) {
+    return {
+      ok: false,
+      needNavigate: true,
+      url: createVehicleUrl(),
+      error: "Not on Marketplace create vehicle listing",
+    };
+  }
+  if (!isMarketplacePath()) {
+    return {
+      ok: false,
+      needNavigate: true,
+      url: createVehicleUrl(),
+      error: "Open Facebook Marketplace create vehicle listing",
+    };
+  }
+  return null;
+}
+
 if (typeof chrome !== "undefined" && chrome.runtime?.onMessage) {
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    if (msg?.type === "LOT_LINKER_FORM_READY") {
+      sendResponse({
+        ok: true,
+        ready: isVehicleFormReady(),
+        path: location.pathname,
+        href: location.href,
+        isCreate: isCreateVehicleListingPath(),
+        isHome: isFacebookHomePath(),
+      });
+      return true;
+    }
     if (msg?.type !== "LOT_LINKER_FILL") return;
-    if (!isMarketplacePath()) {
-      sendResponse({ ok: false, error: "Open a Facebook Marketplace listing tab first" });
+    const blocked = fillBlockedByLocation();
+    if (blocked) {
+      sendResponse(blocked);
       return true;
     }
     Promise.resolve()
-      .then(() => fillPack(msg.pack || {}))
-      .then((r) => {
-        rememberFillForPostWatch(msg.pack || {});
-        sendResponse({ ok: true, ...r });
+      .then(() => waitForVehicleForm())
+      .then((ready) => {
+        if (!ready && !isVehicleFormReady()) {
+          return {
+            ok: false,
+            needNavigate: true,
+            url: createVehicleUrl(),
+            error: "Vehicle form not ready",
+          };
+        }
+        return fillPack(msg.pack || {}).then((r) => {
+          rememberFillForPostWatch(msg.pack || {});
+          return { ok: true, ...r };
+        });
       })
+      .then((r) => sendResponse(r))
       .catch((e) => sendResponse({ ok: false, error: String(e) }));
     return true;
   });

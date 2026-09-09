@@ -250,14 +250,16 @@ $("fill").onclick = async () => {
   if (!selected) return;
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) return status("No active tab");
-  if (!/facebook\.com/i.test(tab.url || "")) {
-    return status("Open a facebook.com Marketplace create tab first");
-  }
   try {
     const pack = await ensureResearched(selected);
     selected = pack;
     renderListing(pack);
-    const res = await chrome.tabs.sendMessage(tab.id, { type: "LOT_LINKER_FILL", pack });
+    const alreadyCreate =
+      typeof LotLinkerFbNav !== "undefined" && LotLinkerFbNav.isCreateVehicleListingUrl
+        ? LotLinkerFbNav.isCreateVehicleListingUrl(tab.url || "")
+        : /\/marketplace\/create\/vehicle/i.test(tab.url || "");
+    status(alreadyCreate ? "Filling…" : "Opening Marketplace create vehicle listing…");
+    const res = await chrome.runtime.sendMessage({ type: "LOT_LINKER_FILL_TAB", pack, tabId: tab.id });
     if (res?.ok) {
       const bits = [`Filled: ${res.filled?.join(", ") || "ok"}`];
       if (res.missed?.length) bits.push(`missed: ${res.missed.join(", ")}`);
@@ -269,12 +271,13 @@ $("fill").onclick = async () => {
       if (res.descriptionHit && res.filled?.includes("description")) {
         bits.push(`via ${res.descriptionHit}`);
       }
+      if (res.gated) bits.push("vehicle type blocked other fields");
       status(bits.join(" · "));
     } else {
       status(res?.error || "Fill failed");
     }
   } catch {
-    status("Content script not ready — refresh the Facebook tab, then try again");
+    status("Could not open create vehicle listing — stay on facebook.com and try again");
   }
 };
 

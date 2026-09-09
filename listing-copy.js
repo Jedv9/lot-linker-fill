@@ -88,6 +88,15 @@
     return "SUV";
   }
 
+  // Facebook's first vehicle-create control is usually the combined
+  // Car/Truck option. Some UIs split Car vs Truck — pick from pack.
+  function marketplaceVehicleTypeValues(pack) {
+    const kind = vehicleType(pack);
+    const combined = ["Car/Truck", "Car / Truck", "Cars & Trucks", "Cars and Trucks"];
+    if (kind === "truck") return [...combined, "Truck", "Pickup", "Pickup truck"];
+    return [...combined, "Car"];
+  }
+
   function shortBody(bodyStyle) {
     const t = text(bodyStyle).toLowerCase();
     if (/sedan/.test(t)) return "Sedan";
@@ -494,6 +503,7 @@
     extractFeaturesFromHtml,
     driveFromNhtsa,
     vehicleType,
+    marketplaceVehicleTypeValues,
     storeName,
     shortModel,
     keySpec,

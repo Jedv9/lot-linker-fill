@@ -1,6 +1,6 @@
 # Lot Linker Fill
 
-Chrome MV3 extension for Lake Country Nissan / Hyundai. Pick a stock number and **Fill** Facebook Marketplace vehicle **Year**, **Make**, **Price**, **Mileage**, **Body style**, **Exterior color**, **Interior color**, **Fuel type**, **Model**, **Description**, and **photos** in one click. You always hit Post. The popup picker tracks **Posted / Not posted** per stock so you can see what is left. VIN, clean title, and vehicle condition are never touched.
+Chrome MV3 extension for Lake Country Nissan / Hyundai. Pick a stock number and **Fill** Facebook Marketplace vehicle **Vehicle type** (Car/Truck), **Year**, **Make**, **Price**, **Model**, **Mileage**, **Body style**, **Exterior color**, **Interior color**, **Fuel type**, **Description**, and **photos** in one click. If you are not already on the create-vehicle form, Fill opens `https://www.facebook.com/marketplace/create/vehicle` in the Facebook tab (never facebook.com home) and waits for the form. You always hit Post. The popup picker tracks **Posted / Not posted** per stock so you can see what is left. VIN, clean title, and vehicle condition are never touched.
 
 **Repo:** https://github.com/Jedv9/lot-linker-fill
 
@@ -9,11 +9,11 @@ Chrome MV3 extension for Lake Country Nissan / Hyundai. Pick a stock number and 
 2. Chrome → `chrome://extensions` → Developer mode → Load unpacked → this folder (`manifest.json`)
 
 ## Use
-1. Open Facebook Marketplace → create **vehicle** listing (`/marketplace/create/vehicle` or equivalent)
+1. You can start on any facebook.com tab — **Fill** opens Marketplace create **vehicle** listing (`/marketplace/create/vehicle`) if you are not already there
 2. Open the extension, search by stock / VIN / model — each row shows mileage, price, and Posted / Not posted
 3. The picker defaults to **Not posted** and shows a **N left** count. Switch the filter to Posted or All when you need them. Search and store filters still apply.
 4. Click **Posted / Not posted** on a row (or **Mark posted**) to record that you listed it. Unmark if you tapped the wrong stock. Marks are stored by stock number and survive popup close, browser restart, and **Refresh packs**.
-5. Click **Fill** (Vehicle type Car/Truck first, then Year, Make, Price, Mileage, body, colors, fuel, Model, description, photos)
+5. Click **Fill** (opens create/vehicle if needed, Vehicle type Car/Truck first — must succeed before other fields — then Year, Make, Price, Model, Mileage, body, colors, fuel, description, photos)
 6. You click Post — the extension never publishes, never clicks Buy / Offer, and never sends messages. If it can reliably see that the listing went live after you posted, it marks that stock posted. If that guess is wrong, the manual mark wins.
 
 Jed should not download photos separately. **Save photos (fallback)** is only if Marketplace’s picker misses (Facebook UI change / no file input).
@@ -47,12 +47,12 @@ Bundled `packs.json` loads on open. **Refresh packs** pulls the latest `packs.js
 ```
 bash scripts/build-zip.sh
 ```
-Writes `dist/lot-linker-fill-2.3.2.zip` and `dist/lot-linker-fill.zip` (unpacked folder inside the zip).
+Writes `dist/lot-linker-fill-2.3.3.zip` and `dist/lot-linker-fill.zip` (unpacked folder inside the zip).
 
 ## Reload after update
 Chrome → `chrome://extensions` → Lot Linker Fill → Reload. If you load from the zip, unzip then Load unpacked on that folder (same as before).
 
 ## Version
-2.3.2
+2.3.3
 
-One-click Fill **first** sets **Vehicle type** to **Car/Truck** (Year/Make/etc. will not take until this is set), then writes **Year**, **Make**, **Price**, **Mileage**, **Body style**, **Exterior color**, **Interior color**, **Fuel type**, **Model** title line, **Description**, and **photos**. **VIN is never written**. Clean title and vehicle condition are never written. Description fill still walks Facebook’s vehicle-create markup. Year / Body style / Exterior / Interior are found by nearby label text (not only `aria-label`) so a grouped “Year, make, model…” wrapper does not skip them. Comboboxes open, type-to-filter when the list is long, then click a matching `[role=option]`. Price and Mileage use digits only. Mileage is clamped to a **300**-mile Facebook minimum (0 / blank / under 300 → 300).
+One-click Fill opens `/marketplace/create/vehicle` when Jed is not already on that form (never `facebook.com/` home, never Marketplace browse). It **first** sets **Vehicle type** to **Car/Truck** (or Car vs Truck from the pack if Facebook split the control). Other fields are gated until that succeeds. Then it writes **Year**, **Make**, **Price**, **Model** title line, **Mileage**, **Body style**, **Exterior color**, **Interior color**, **Fuel type**, **Description**, and **photos**. **VIN is never written**. Clean title and vehicle condition are never written. Fill never sends Escape to the page (that closed Facebook’s create dialog and bounced home). Description fill still walks Facebook’s vehicle-create markup. Year / Body style / Exterior / Interior are found by nearby label text (not only `aria-label`) so a grouped “Year, make, model…” wrapper does not skip them. Comboboxes open, type-to-filter when the list is long, then click a matching `[role=option]`. Price and Mileage use digits only. Mileage is clamped to a **300**-mile Facebook minimum (0 / blank / under 300 → 300).
