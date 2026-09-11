@@ -1,0 +1,8 @@
+{
+  "name": "lot-linker-inventory",
+  "private": true,
+  "description": "Weekly scraper that rebuilds packs.json for the Lot Linker Fill extension (Lake Country rooftops).",
+  "devDependencies": {
+    "playwright": "^1.48.0"
+  }
+}
