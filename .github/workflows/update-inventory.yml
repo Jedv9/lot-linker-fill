@@ -1,0 +1,46 @@
+name: Update inventory
+
+on:
+  schedule:
+    # Mondays ~08:07 America/Chicago. GitHub Actions cron is UTC and does NOT
+    # observe DST: 13:07 UTC = 08:07 CDT (summer) / 07:07 CST (winter).
+    - cron: "7 13 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-inventory
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Scrape inventory -> packs.json
+        run: node scripts/scrape-inventory.mjs
+
+      - name: Commit packs.json if changed
+        run: |
+          git config user.name "lot-linker-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packs.json
+          if git diff --staged --quiet; then
+            echo "No inventory changes this run."
+          else
+            git commit -m "Weekly inventory update ($(date -u +%Y-%m-%d))"
+            git push
+          fi
