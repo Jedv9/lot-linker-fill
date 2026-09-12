@@ -164,7 +164,7 @@ function toPack(r, rooftop) {
     stock: r.stock, year: String(r.year || ""), make, model, trim: r.trim || "", bodyStyle,
     mileage: String(miles), vin: r.vin, condition: /new/i.test(r.type) ? "NEW" : "USED",
     exterior: r.exterior || "", interior: r.interior || "", transmission: r.transmission || "",
-    fuel: cleanFuel(r.fuel), drivetrain: r.drivetrain || "", engine: r.engine || "",
+    fuel: cleanFuel(r.fuel), drivetrain: r.drivetrain || "", engine: "", // engine left blank so the Model line shows drivetrain (AWD), not the engine
     titleStatus: "Title Clean", zip: "53066", price: r.price > 0 ? String(r.price) : "",
     title: [r.year, make, model, r.trim, bodyStyle].filter(Boolean).join(" "), rooftop,
     photoUrls: Array.isArray(r.photoUrls) ? r.photoUrls : [], odometerMiles: miles, vdpUrl: r.vdpUrl || "",
