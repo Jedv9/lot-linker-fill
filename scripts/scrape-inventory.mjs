@@ -212,8 +212,11 @@ async function main() {
   const packs = [];
   for (const rt of ROOFTOPS) {
     const { total, recs } = await pullSite(page, rt.site, rt.facetFilters);
-    const listable = recs.filter((r) => r.price > 0 && Array.isArray(r.photoUrls) && r.photoUrls.length > 0);
-    console.log(`${rt.rooftop}: total=${total} pulled=${recs.length} listable(price+photos)=${listable.length}`);
+    // PRE-OWNED ONLY (skip New), and only units with both a price and photos.
+    const listable = recs.filter(
+      (r) => !/new/i.test(r.type) && r.price > 0 && Array.isArray(r.photoUrls) && r.photoUrls.length > 0
+    );
+    console.log(`${rt.rooftop}: total=${total} pulled=${recs.length} preowned+price+photos=${listable.length}`);
     if (!recs.length) throw new Error(`No vehicles pulled for ${rt.rooftop} — aborting so we don't publish an empty file`);
     packs.push(...listable.map((r) => toPack(r, rt.rooftop)));
   }
@@ -222,15 +225,32 @@ async function main() {
   await enrichFromVdps(ctx, packs);
   await browser.close();
 
-  if (packs.length < 30) throw new Error(`Only ${packs.length} listable vehicles — suspiciously low, aborting`);
+  if (packs.length < 10) throw new Error(`Only ${packs.length} pre-owned vehicles — suspiciously low, aborting`);
+
+  // "What sold" report: pre-owned units that were in the previous packs.json but
+  // are no longer on the site (sold / removed) — so Jed knows what to take down.
+  let previous = [];
+  try { previous = JSON.parse(fs.readFileSync("packs.json", "utf8")).packs || []; } catch {}
+  const nowStocks = new Set(packs.map((p) => p.stock));
+  const sold = previous
+    .filter((p) => p.condition !== "NEW" && !nowStocks.has(p.stock))
+    .map((p) => ({
+      stock: p.stock, vin: p.vin,
+      vehicle: [p.year, p.make, p.model, p.trim].filter(Boolean).join(" "),
+      rooftop: p.rooftop, lastPrice: p.price,
+    }));
+
   const out = {
     generatedAt: new Date().toISOString(),
-    source: "carscommerce websites-search API + VDP equipment (Lake Country rooftops, price+photos only)",
+    source: "carscommerce websites-search API + VDP equipment (Lake Country, PRE-OWNED only, price+photos)",
     count: packs.length,
+    soldSinceLast: sold.length,
+    sold,
     packs,
   };
   fs.writeFileSync("packs.json", JSON.stringify(out));
-  console.log(`Wrote packs.json — ${packs.length} vehicles, ${(fs.statSync("packs.json").size / 1024 / 1024).toFixed(2)} MB`);
+  console.log(`Wrote packs.json — ${packs.length} pre-owned, ${sold.length} sold since last run, ${(fs.statSync("packs.json").size / 1024 / 1024).toFixed(2)} MB`);
+  if (sold.length) console.log("SOLD/removed:\n" + sold.map((s) => "  - " + s.stock + "  " + s.vehicle).join("\n"));
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
