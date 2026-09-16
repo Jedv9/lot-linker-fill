@@ -212,9 +212,12 @@ async function main() {
   const packs = [];
   for (const rt of ROOFTOPS) {
     const { total, recs } = await pullSite(page, rt.site, rt.facetFilters);
-    // PRE-OWNED ONLY (skip New), and only units with both a price and photos.
+    // PRE-OWNED ONLY (skip New), with a price and a REAL photo set (>= 4 photos).
+    // A single stray/placeholder photo means the real pictures aren't up yet — skip
+    // until they are (a finished listing has ~20).
+    const MIN_PHOTOS = 4;
     const listable = recs.filter(
-      (r) => !/new/i.test(r.type) && r.price > 0 && Array.isArray(r.photoUrls) && r.photoUrls.length > 0
+      (r) => !/new/i.test(r.type) && r.price > 0 && Array.isArray(r.photoUrls) && r.photoUrls.length >= MIN_PHOTOS
     );
     console.log(`${rt.rooftop}: total=${total} pulled=${recs.length} preowned+price+photos=${listable.length}`);
     if (!recs.length) throw new Error(`No vehicles pulled for ${rt.rooftop} — aborting so we don't publish an empty file`);
