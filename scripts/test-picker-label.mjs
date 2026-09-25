@@ -8,7 +8,7 @@ const packs = JSON.parse(readFileSync(new URL("../packs.json", import.meta.url),
 
 assert.ok(packs.length >= 200, `expected full inventory, got ${packs.length}`);
 
-const labelRe = / · (NEW|\d{1,3}(?:,\d{3})* mi) · \$[\d,]+$/;
+const labelRe = / · \d{1,3}(?:,\d{3})* mi · \$[\d,]+$/;
 
 for (const pack of packs) {
   const label = listing.pickerLabel(pack);
@@ -25,7 +25,7 @@ assert.equal(
 );
 assert.equal(
   listing.pickerLabel(packs.find((p) => p.stock === "26NU0143")),
-  "26NU0143 · 2026 Nissan Altima 2.5 SR · NEW · $30,470"
+  "26NU0143 · 2026 Nissan Altima 2.5 SR · 300 mi · $30,470"
 );
 
 console.log(`picker labels ok · ${packs.length} packs`);

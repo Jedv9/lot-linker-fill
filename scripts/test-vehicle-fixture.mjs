@@ -60,11 +60,23 @@ for (const row of report) {
     assert.equal(row.year, "2026");
     assert.equal(row.make, "Nissan");
     assert.equal(row.price, "30470");
-    assert.equal(row.mileage, "0");
+    assert.equal(row.mileage, "300");
     assert.equal(row.bodyStyle, "Sedan");
     assert.ok(["Grey", "Gray"].includes(row.exterior), `${row.label} exterior ${row.exterior}`);
     assert.equal(row.interior, "");
     assert.equal(row.fuel, "Gasoline");
+  }
+  if (row.label === "LowMiles") {
+    assert.equal(row.mileage, "300");
+    assert.equal(row.year, "2016");
+    assert.equal(row.make, "Hyundai");
+    assert.equal(row.price, "12995");
+  }
+  if (row.label === "MidMiles") {
+    assert.equal(row.mileage, "12000");
+    assert.equal(row.year, "2016");
+    assert.equal(row.make, "Hyundai");
+    assert.equal(row.price, "12995");
   }
 }
 

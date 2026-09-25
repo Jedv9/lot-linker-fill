@@ -31,18 +31,33 @@
     return Math.round(n).toLocaleString("en-US");
   }
 
+  const FB_MIN_MILEAGE = 300;
+
+  function rawOdometer(pack) {
+    return pack?.odometerMiles != null && pack.odometerMiles !== ""
+      ? pack.odometerMiles
+      : pack?.mileage;
+  }
+
   function formatMileage(pack) {
     const cond = text(pack.condition).toUpperCase();
     if (cond === "NEW") return "NEW";
-    const raw = pack.odometerMiles != null && pack.odometerMiles !== "" ? pack.odometerMiles : pack.mileage;
-    const n = Number(String(raw ?? "").replace(/[^\d]/g, ""));
+    const n = Number(String(rawOdometer(pack) ?? "").replace(/[^\d]/g, ""));
     if (!Number.isFinite(n)) return "0";
     return n.toLocaleString("en-US");
   }
 
+  // Facebook Marketplace rejects vehicle listings under 300 miles.
+  // Missing, empty, 0, or any value below 300 fills as 300.
+  function marketplaceMileage(pack) {
+    const n = Number(String(rawOdometer(pack) ?? "").replace(/[^\d]/g, ""));
+    const miles = Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
+    return String(Math.max(FB_MIN_MILEAGE, miles));
+  }
+
   function mileageLabel(pack) {
-    const miles = formatMileage(pack);
-    return miles === "NEW" ? "NEW" : `${miles} mi`;
+    const miles = Number(marketplaceMileage(pack));
+    return `${miles.toLocaleString("en-US")} mi`;
   }
 
   function pickerLabel(pack) {
@@ -485,7 +500,9 @@
     keyEquipment,
     formatPrice,
     formatMileage,
+    marketplaceMileage,
     mileageLabel,
     pickerLabel,
+    FB_MIN_MILEAGE,
   };
 });
