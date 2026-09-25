@@ -10,7 +10,15 @@
     .sub { color: #94a3b8; font-size: 11px; }
     .wrap { padding: 10px 14px 14px; display: grid; gap: 8px; }
     input, select { width: 100%; box-sizing: border-box; border-radius: 8px; border: 1px solid #334155; background: #111827; color: #e2e8f0; padding: 8px 10px; }
-    #list { font-size: 11px; line-height: 1.45; }
+    .filters { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center; }
+    .left { font-size: 12px; font-weight: 650; color: #7dd3fc; white-space: nowrap; padding-right: 2px; }
+    #list { max-height: 196px; overflow: auto; border: 1px solid #334155; border-radius: 8px; background: #111827; }
+    .item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #1e293b; }
+    .item:last-child { border-bottom: 0; }
+    .item.sel { background: #0c4a6e; }
+    .item .lab { flex: 1; min-width: 0; font-size: 11px; line-height: 1.35; }
+    .item .mark { flex: none; border: 0; border-radius: 6px; padding: 4px 8px; cursor: pointer; font-size: 10px; font-weight: 650; background: #334155; color: #e2e8f0; }
+    .item .mark.posted { background: #14532d; color: #86efac; }
     input:focus, select:focus { outline: 2px solid #0ea5e9; border-color: transparent; }
     .row { display: flex; gap: 6px; flex-wrap: wrap; }
     button { border: 0; border-radius: 8px; padding: 8px 10px; cursor: pointer; font-weight: 600; background: #0ea5e9; color: #04111a; }
@@ -34,15 +42,25 @@
     <select id="fStore" title="Store">
       <option value="">All stores</option>
     </select>
-    <select id="list" size="8"></select>
+    <div class="filters">
+      <select id="fPosted" title="Posted filter">
+        <option value="not" selected>Not posted</option>
+        <option value="posted">Posted</option>
+        <option value="all">All</option>
+      </select>
+      <div class="left" id="leftCount">0 left</div>
+    </div>
+    <div id="list" role="listbox" aria-label="Inventory"></div>
     <div id="card" class="card" hidden>
       <div class="pick" id="mPick"></div>
+      <div class="sub" id="mPosted"></div>
       <div class="title" id="mTitle"></div>
       <div class="sub" id="mPhotos"></div>
       <div class="body" id="mBody"></div>
     </div>
     <div class="row">
       <button id="fill" disabled>Fill</button>
+      <button class="secondary" id="togglePosted" disabled>Mark posted</button>
       <button class="secondary" id="savePhotos" disabled title="Only if Marketplace photo picker misses">Save photos (fallback)</button>
       <button class="secondary" id="refreshInventory">Refresh packs</button>
     </div>
@@ -53,6 +71,7 @@
   <script src="config.js"></script>
   <script src="listing-copy.js"></script>
   <script src="photos.js"></script>
+  <script src="posted.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

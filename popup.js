@@ -2,6 +2,7 @@ let packs = [];
 let selected = null;
 let researchPromise = null;
 let researchStock = null;
+let postedMap = {};
 
 const $ = (id) => document.getElementById(id);
 const status = (t) => { $("status").textContent = t || ""; };
@@ -36,8 +37,11 @@ async function loadBundled() {
   const res = await fetch(chrome.runtime.getURL("packs.json"));
   const data = await res.json();
   const bundled = data.packs || [];
-  const stored = await chrome.storage.local.get(["packsOverride", "packsRefreshedAt"]);
+  const stored = await chrome.storage.local.get(["packsOverride", "packsRefreshedAt", "postedByStock"]);
   packs = stored.packsOverride?.length ? stored.packsOverride : bundled;
+  postedMap = (typeof LotLinkerPosted !== "undefined" && LotLinkerPosted.asMap)
+    ? LotLinkerPosted.asMap(stored.postedByStock)
+    : (stored.postedByStock || {});
   fillStoreFilter();
   renderList();
   showRefreshMeta(stored.packsRefreshedAt);
@@ -62,7 +66,7 @@ function fillStoreFilter() {
   sel.value = stores.includes(prev) ? prev : "";
 }
 
-function applyFilters() {
+function searchStoreFiltered() {
   const q = ($("q")?.value || "").trim().toLowerCase();
   const store = $("fStore")?.value || "";
   return packs.filter((p) => {
@@ -71,6 +75,41 @@ function applyFilters() {
     const hay = [p.stock, p.vin, p.year, p.make, p.model, p.trim].join(" ").toLowerCase();
     return hay.includes(q);
   });
+}
+
+function applyFilters() {
+  const base = searchStoreFiltered();
+  if (typeof LotLinkerPosted === "undefined" || !LotLinkerPosted.applyPostedFilter) return base;
+  const mode = $("fPosted")?.value || "not";
+  return LotLinkerPosted.applyPostedFilter(base, postedMap, mode);
+}
+
+function stockIsPosted(stock) {
+  return typeof LotLinkerPosted !== "undefined" && LotLinkerPosted.isPosted
+    ? LotLinkerPosted.isPosted(postedMap, stock)
+    : false;
+}
+
+function updateLeftCount() {
+  const el = $("leftCount");
+  if (!el) return;
+  const n = typeof LotLinkerPosted !== "undefined" && LotLinkerPosted.countNotPosted
+    ? LotLinkerPosted.countNotPosted(searchStoreFiltered(), postedMap)
+    : searchStoreFiltered().length;
+  el.textContent = typeof LotLinkerPosted !== "undefined" && LotLinkerPosted.leftLabel
+    ? LotLinkerPosted.leftLabel(n)
+    : `${n} left`;
+}
+
+function updatePostedControls() {
+  const btn = $("togglePosted");
+  const state = $("mPosted");
+  const posted = selected ? stockIsPosted(selected.stock) : false;
+  if (btn) {
+    btn.disabled = !selected;
+    btn.textContent = posted ? "Mark not posted" : "Mark posted";
+  }
+  if (state) state.textContent = selected ? (posted ? "Posted" : "Not posted") : "";
 }
 
 function packPickerLabel(pack) {
@@ -83,17 +122,46 @@ function packPickerLabel(pack) {
 
 function renderList() {
   const list = $("list");
-  list.innerHTML = "";
   const filtered = applyFilters();
-  for (const p of filtered) {
-    const opt = document.createElement("option");
-    opt.value = p.stock;
-    opt.textContent = packPickerLabel(p);
-    list.appendChild(opt);
+  if (selected && !filtered.some((p) => p.stock === selected.stock)) {
+    showPack(null);
   }
+  list.innerHTML = "";
+  for (const p of filtered) {
+    const row = document.createElement("div");
+    row.className = "item" + (selected && selected.stock === p.stock ? " sel" : "");
+    row.dataset.stock = p.stock;
+    row.setAttribute("role", "option");
+    row.setAttribute("aria-selected", selected && selected.stock === p.stock ? "true" : "false");
+
+    const lab = document.createElement("div");
+    lab.className = "lab";
+    lab.textContent = packPickerLabel(p);
+
+    const posted = stockIsPosted(p.stock);
+    const mark = document.createElement("button");
+    mark.type = "button";
+    mark.className = "mark" + (posted ? " posted" : "");
+    mark.textContent = posted ? "Posted" : "Not posted";
+    mark.title = posted ? "Click to mark not posted" : "Click to mark posted";
+    mark.addEventListener("click", (e) => {
+      e.stopPropagation();
+      togglePosted(p.stock);
+    });
+
+    row.appendChild(lab);
+    row.appendChild(mark);
+    row.addEventListener("click", () => {
+      const pack = packs.find((x) => x.stock === p.stock);
+      showPack(pack || null);
+      renderList();
+    });
+    list.appendChild(row);
+  }
+  updateLeftCount();
+  updatePostedControls();
   if (!filtered.length) status("No matches");
   else status(`${filtered.length} shown · ${packs.length} total`);
-  if (selected && !filtered.some((p) => p.stock === selected.stock)) showPack(null);
 }
 
 function photoMetaText(pack) {
@@ -136,6 +204,7 @@ function showPack(p) {
   $("card").hidden = !p;
   $("fill").disabled = !p;
   if ($("savePhotos")) $("savePhotos").disabled = !p;
+  updatePostedControls();
   if (!p) return;
   renderListing(p);
   if (typeof LotLinkerListing !== "undefined" && LotLinkerListing.needsResearch?.(p)) {
@@ -152,12 +221,30 @@ function showPack(p) {
   }
 }
 
+async function togglePosted(stock) {
+  if (!stock || typeof LotLinkerPosted === "undefined" || !LotLinkerPosted.setPosted) return;
+  const nextPosted = !stockIsPosted(stock);
+  postedMap = await LotLinkerPosted.setPosted(stock, nextPosted);
+  renderList();
+  if (selected && selected.stock === stock) updatePostedControls();
+}
+
 $("q").addEventListener("input", () => renderList());
 $("fStore")?.addEventListener("change", () => renderList());
-$("list").addEventListener("change", () => {
-  const p = packs.find((x) => x.stock === $("list").value);
-  showPack(p || null);
+$("fPosted")?.addEventListener("change", () => renderList());
+$("togglePosted")?.addEventListener("click", () => {
+  if (selected?.stock) togglePosted(selected.stock);
 });
+
+if (typeof chrome !== "undefined" && chrome.storage?.onChanged) {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local" || !changes.postedByStock) return;
+    postedMap = (typeof LotLinkerPosted !== "undefined" && LotLinkerPosted.asMap)
+      ? LotLinkerPosted.asMap(changes.postedByStock.newValue)
+      : (changes.postedByStock.newValue || {});
+    renderList();
+  });
+}
 
 $("fill").onclick = async () => {
   if (!selected) return;
@@ -214,6 +301,7 @@ $("refreshInventory").onclick = async () => {
       packsOverride: packs,
       packsRefreshedAt: at,
       packsSource: url,
+      // postedByStock is intentionally not written — Refresh must not wipe marks
     });
     fillStoreFilter();
     renderList();
