@@ -25,6 +25,16 @@
     return Boolean(s) && !PLACEHOLDER_RE.test(s);
   }
 
+  // Every advertised price includes the dealer service fee.
+  const SERVICE_FEE = 499;
+
+  // Pack price + service fee as a whole number; 0 when the pack has no real price.
+  function listedPrice(pack) {
+    const n = Number(String(pack?.price ?? "").replace(/[^\d.]/g, ""));
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    return Math.round(n) + SERVICE_FEE;
+  }
+
   function formatPrice(price) {
     const n = Number(String(price ?? "").replace(/[^\d.]/g, ""));
     if (!Number.isFinite(n)) return "0";
@@ -48,7 +58,7 @@
   function pickerLabel(pack) {
     const p = pack || {};
     const name = [p.year, p.make, p.model, p.trim].map(text).filter(Boolean).join(" ");
-    return [text(p.stock), name, mileageLabel(p), `$${formatPrice(p.price)}`].filter(Boolean).join(" · ");
+    return [text(p.stock), name, mileageLabel(p), `$${formatPrice(listedPrice(p))}`].filter(Boolean).join(" · ");
   }
 
   function vehicleType(pack) {
@@ -402,7 +412,7 @@
   function buildTitle(pack) {
     const name = [pack.year, pack.make, pack.model, pack.trim].map(text).filter(Boolean).join(" ");
     const spec = keySpec(pack);
-    const price = formatPrice(pack.price);
+    const price = formatPrice(listedPrice(pack));
     const parts = [name];
     if (spec) parts.push(spec);
     parts.push(`$${price}`);
@@ -414,7 +424,7 @@
   function buildModelLine(pack) {
     const name = [pack.model, pack.trim].map(text).filter(Boolean).join(" ");
     const spec = keySpec(pack);
-    const price = formatPrice(pack.price);
+    const price = formatPrice(listedPrice(pack));
     const parts = [];
     if (name) parts.push(name);
     if (spec) parts.push(spec);
@@ -425,7 +435,7 @@
 
   function buildDescription(pack) {
     const type = vehicleType(pack);
-    const price = formatPrice(pack.price);
+    const price = formatPrice(listedPrice(pack));
     const ymm = [pack.year, pack.make, pack.model].map(text).filter(Boolean).join(" ");
     const store = storeName(pack);
     const miles = formatMileage(pack);
@@ -450,7 +460,7 @@
       "",
       "Trade-ins welcome. Financing available for qualified buyers.",
       "",
-      "Advertised price excludes applicable taxes, title, registration, dealer fees, and other charges. Equipment, pricing, and availability subject to verification. See dealer for complete details.",
+      `Advertised price includes $${SERVICE_FEE} service fee. Excludes applicable taxes, title, registration, and other charges. Equipment, pricing, and availability subject to verification. See dealer for complete details.`,
     ].join("\n");
   }
 
@@ -484,6 +494,8 @@
     keySpec,
     keyEquipment,
     formatPrice,
+    listedPrice,
+    SERVICE_FEE,
     formatMileage,
     mileageLabel,
     pickerLabel,

@@ -411,10 +411,15 @@ function isBlankPackValue(v) {
   return !s || /^(\[need\]|n\/?a|unknown|tbd|none|-)$/i.test(s);
 }
 
+// Price field = pack price + $499 service fee (see LotLinkerListing.listedPrice).
 function priceDigits(pack) {
+  if (typeof LotLinkerListing !== "undefined" && LotLinkerListing.listedPrice) {
+    const listed = LotLinkerListing.listedPrice(pack);
+    return listed > 0 ? String(listed) : "";
+  }
   const n = Number(String(pack?.price ?? "").replace(/[^\d.]/g, ""));
   if (!Number.isFinite(n) || n <= 0) return "";
-  return String(Math.round(n));
+  return String(Math.round(n) + 499);
 }
 
 function mileageDigits(pack) {

@@ -18,6 +18,9 @@ Jed should not download photos separately. **Save photos (fallback)** is only if
 
 Model line and description are generated at fill time from pack fields (`year`, `make`, `model`, `trim`, `price`, `mileage`, `stock`, `rooftop`, `bodyStyle`, `drivetrain`, `engine` if present, plus verified features from `features` / `equipment` / pack `body` standouts). **Year**, **Make**, **Price**, **Mileage**, **Body style**, **Exterior color**, **Interior color**, and **Fuel type** are written into their own Marketplace fields when the pack has a value we can map. VIN is never filled. The clean-title checkbox and vehicle condition are left alone.
 
+## Price
+Every price the extension shows or fills (picker rows, Model line, Title, Description, and the Marketplace **Price** field) is the pack price **plus the $499 service fee** (`SERVICE_FEE` in `listing-copy.js`). Packs keep the raw dealer price; the fee is added at fill time. The description disclaimer states the fee is included.
+
 ## Model line (Facebook vehicle create)
 `{Model} {Trim} | {engine or drivetrain or body} | ${price} | Oconomowoc WI`
 

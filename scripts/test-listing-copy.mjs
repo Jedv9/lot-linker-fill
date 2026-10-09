@@ -42,7 +42,7 @@ function assertLayout(body) {
   assert.equal(lines[i + 4], "");
   assert.equal(
     lines[i + 5],
-    "Advertised price excludes applicable taxes, title, registration, dealer fees, and other charges. Equipment, pricing, and availability subject to verification. See dealer for complete details."
+    "Advertised price includes $499 service fee. Excludes applicable taxes, title, registration, and other charges. Equipment, pricing, and availability subject to verification. See dealer for complete details."
   );
 }
 
