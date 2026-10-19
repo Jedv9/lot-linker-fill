@@ -52,6 +52,20 @@ assert.equal(
   "PU1392 · 2012 Ford F-150 SVT Raptor · 109,782 mi · $26,900"
 );
 assert.equal(listing.mileageLabel(raptorPack), "109,782 mi");
+assert.equal(listing.marketplaceMileage(raptorPack), "109782");
+assert.equal(listing.FB_MIN_MILEAGE, 300);
+assert.equal(listing.marketplaceMileage({ mileage: "0" }), "300");
+assert.equal(listing.marketplaceMileage({ mileage: 0, odometerMiles: 0 }), "300");
+assert.equal(listing.marketplaceMileage({ mileage: "50" }), "300");
+assert.equal(listing.marketplaceMileage({ odometerMiles: 50 }), "300");
+assert.equal(listing.marketplaceMileage({ mileage: "" }), "300");
+assert.equal(listing.marketplaceMileage({}), "300");
+assert.equal(listing.marketplaceMileage({ mileage: "299" }), "300");
+assert.equal(listing.marketplaceMileage({ mileage: "300" }), "300");
+assert.equal(listing.marketplaceMileage({ mileage: "12000" }), "12000");
+assert.equal(listing.marketplaceMileage({ odometerMiles: 12000, mileage: "0" }), "12000");
+assert.equal(listing.mileageLabel({ mileage: "50", condition: "USED" }), "300 mi");
+assert.equal(listing.mileageLabel({ mileage: "12000", condition: "USED" }), "12,000 mi");
 assert.equal(
   listing.buildModelLine(raptorPack),
   "F-150 SVT Raptor | 4WD | $26,900 | Oconomowoc WI"
@@ -71,9 +85,11 @@ assertLayout(raptorListing.body);
 const nissan = listing.fromPack(pack("26NU0143"));
 assert.equal(
   listing.pickerLabel(pack("26NU0143")),
-  "26NU0143 · 2026 Nissan Altima 2.5 SR · NEW · $30,470"
+  "26NU0143 · 2026 Nissan Altima 2.5 SR · 300 mi · $30,470"
 );
-assert.equal(listing.mileageLabel(pack("26NU0143")), "NEW");
+assert.equal(listing.mileageLabel(pack("26NU0143")), "300 mi");
+assert.equal(listing.formatMileage(pack("26NU0143")), "NEW");
+assert.equal(listing.marketplaceMileage(pack("26NU0143")), "300");
 assert.equal(nissan.modelLine, "Altima 2.5 SR | AWD | $30,470 | Oconomowoc WI");
 assert.doesNotMatch(nissan.modelLine, /2026|Nissan/);
 assert.equal(nissan.title, "2026 Nissan Altima 2.5 SR | AWD | $30,470 | Oconomowoc WI");
