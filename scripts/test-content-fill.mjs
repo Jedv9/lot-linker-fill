@@ -12,8 +12,8 @@ const manifest = JSON.parse(readFileSync(new URL("../manifest.json", import.meta
 const background = readFileSync(new URL("../background.js", import.meta.url), "utf8");
 const zipBuild = readFileSync(new URL("./build-zip.sh", import.meta.url), "utf8");
 
-assert.equal(manifest.version, "2.2.4");
-assert.deepEqual(manifest.content_scripts[0].js, ["listing-copy.js", "photos.js", "content-fb.js"]);
+assert.equal(manifest.version, "2.3.0");
+assert.deepEqual(manifest.content_scripts[0].js, ["listing-copy.js", "photos.js", "posted.js", "content-fb.js"]);
 assert.equal(manifest.background.service_worker, "background.js");
 assert.ok(manifest.permissions.includes("downloads"), "fallback save uses chrome.downloads");
 assert.ok(manifest.host_permissions.some((h) => /vehicle-images\.carscommerce\.inc/.test(h)));
@@ -21,6 +21,7 @@ assert.ok(manifest.host_permissions.some((h) => /facebook\.com/.test(h)));
 assert.match(background, /LOT_LINKER_PREPARE_PHOTOS/);
 assert.doesNotMatch(background, /chrome\.downloads/);
 assert.match(zipBuild, /lot-linker-fill/);
+assert.match(zipBuild, /posted\.js/);
 
 assert.match(content, /LOT_LINKER_FILL/);
 assert.match(content, /Never VIN/);
@@ -80,6 +81,32 @@ assert.match(popup, /res\.missed/);
 assert.match(popup, /pickerLabel|packPickerLabel/);
 assert.match(popup, /savePhotos/);
 assert.doesNotMatch(popup, /storeShort/);
+assert.match(popupHtml, /id="fPosted"/);
+assert.match(popupHtml, /id="leftCount"/);
+assert.match(popupHtml, /id="togglePosted"/);
+assert.match(popupHtml, /posted\.js/);
+assert.match(popup, /postedByStock/);
+assert.match(popup, /togglePosted/);
+assert.match(popup, /searchStoreFiltered/);
+assert.doesNotMatch(popup, /postedByStock:\s*packs/);
+assert.match(content, /buy\|offer|make offer/);
+assert.match(content, /rememberFillForPostWatch/);
+assert.match(content, /maybeMarkPendingPosted|startPostedWatch/);
+assert.doesNotMatch(content, /marketplace\/inbox|Messenger\.send|composeMessage/);
+assert.doesNotMatch(content, /LotLinkerPosted\.setPosted/);
+const refreshBlock = popup.slice(popup.indexOf("refreshInventory"), popup.indexOf("savePhotos"));
+assert.doesNotMatch(refreshBlock, /postedByStock/);
+
+const fillOnce = content.slice(content.indexOf("async function fillPackOnce"), content.indexOf("function mergePhotoResult"));
+const fillKeys = ["vehicleType", "year", "make", "model", "price", "mileage", "bodyStyle", "exterior", "interior", "fuel", "description"];
+let cursor = 0;
+for (const key of fillKeys) {
+  const idx = fillOnce.indexOf(`"${key}"`, cursor);
+  assert.ok(idx >= 0, `fillPackOnce must still write ${key} in locked order`);
+  cursor = idx + 1;
+}
+assert.doesNotMatch(fillOnce, /mark\(\s*"vin"/);
+assert.doesNotMatch(fillOnce, /mark\(\s*"condition"/);
 
 const nissan = listing.fromPack(packs.find((p) => p.stock === "26NU0143"));
 assert.ok(nissan.body.includes("\n\n"), "description must keep blank lines");
