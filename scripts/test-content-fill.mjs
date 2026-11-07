@@ -13,7 +13,7 @@ const manifest = JSON.parse(readFileSync(new URL("../manifest.json", import.meta
 const background = readFileSync(new URL("../background.js", import.meta.url), "utf8");
 const zipBuild = readFileSync(new URL("./build-zip.sh", import.meta.url), "utf8");
 
-assert.equal(manifest.version, "2.3.0");
+assert.equal(manifest.version, "2.4.0");
 assert.deepEqual(manifest.content_scripts[0].js, ["listing-copy.js", "photos.js", "content-fb.js"]);
 assert.equal(manifest.background.service_worker, "background.js");
 assert.ok(manifest.permissions.includes("downloads"), "fallback save uses chrome.downloads");
@@ -24,6 +24,7 @@ assert.ok(!manifest.host_permissions.some((h) => /nissanlakecountry|hyundailakec
 assert.match(background, /LOT_LINKER_PREPARE_PHOTOS/);
 assert.doesNotMatch(background, /chrome\.downloads/);
 assert.match(zipBuild, /lot-linker-fill/);
+assert.match(zipBuild, /LotLinker\.zip/);
 
 assert.match(content, /LOT_LINKER_FILL/);
 assert.match(content, /Never VIN/);
@@ -31,6 +32,7 @@ assert.match(content, /\\bmodel\\b/);
 assert.match(content, /\\bdescription\\b/);
 assert.match(content, /fillChoice/);
 assert.match(content, /priceDigits/);
+assert.match(content, /advertisedPrice/);
 assert.match(content, /mileageDigits/);
 assert.match(content, /bodyStyleCandidates/);
 assert.match(content, /colorCandidates/);
@@ -89,7 +91,7 @@ assert.doesNotMatch(popup, /storeShort/);
 const cpoListing = listing.fromPack(toPack(cpo));
 assert.ok(cpoListing.body.includes("\n\n"), "description must keep blank lines");
 assert.equal(cpoListing.body.split("\n\n").length >= 5, true);
-assert.equal(cpoListing.modelLine, "NX 350 Premium | AWD | $43,999 | Brookfield WI");
+assert.equal(cpoListing.modelLine, "NX 350 Premium | AWD | $44,516 | Brookfield WI");
 
 const raptor = listing.packToListing({
   stock: "PU1392",
@@ -104,6 +106,6 @@ const raptor = listing.packToListing({
   price: "26900",
   rooftop: "Lexus of Brookfield",
 });
-assert.equal(raptor.modelLine, "F-150 SVT Raptor | 4WD | $26,900 | Brookfield WI");
+assert.equal(raptor.modelLine, "F-150 SVT Raptor | 4WD | $27,417 | Brookfield WI");
 
 console.log("content/popup/manifest checks ok");

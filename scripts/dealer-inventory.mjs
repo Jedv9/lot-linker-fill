@@ -34,6 +34,9 @@ export const NEW_INVENTORY_PAGE = `${DEALER.site}/new-inventory/index.htm`;
 
 export const MIN_PHOTOS = 4;
 export const MAX_PHOTOS = 20;
+export const SERVICE_FEE = 479;
+export const FILING_FEE = 38;
+export const DEALER_FEES = SERVICE_FEE + FILING_FEE;
 
 const OLD_DEALER_RE =
   /nissanlakecountry|hyundailakecountry|\bboucher\b|lake country nissan|lake country hyundai|oconomowoc/i;
@@ -89,17 +92,38 @@ export function attrNormalized(vehicle, name) {
   return hit ? text(hit.normalizedValue || hit.value) : "";
 }
 
-export function pickPrice(vehicle) {
-  const dprice = vehicle?.pricing?.dprice;
-  if (Array.isArray(dprice)) {
-    const asking = dprice.find((x) => x?.typeClass === "askingPrice");
-    if (asking) {
-      const n = num(asking.value);
-      if (n) return n;
+export function pickPricing(vehicle) {
+  const dprice = Array.isArray(vehicle?.pricing?.dprice) ? vehicle.pricing.dprice : [];
+  const askingRow = dprice.find((x) => x?.typeClass === "askingPrice");
+  const totalRow = dprice.find((x) => x?.typeClass === "internetPrice" || x?.isFinalPrice);
+  const tp = vehicle?.trackingPricing || {};
+  const asking = num(askingRow?.value) || num(tp.askingPrice) || num(tp.salePrice) || 0;
+  const siteTotal = num(totalRow?.value) || num(tp.internetPrice) || 0;
+  const retail = num(vehicle?.pricing?.retailPrice);
+  if (asking && siteTotal === asking + DEALER_FEES) {
+    return { base: asking, total: siteTotal, serviceFee: SERVICE_FEE, filingFee: FILING_FEE, fees: DEALER_FEES };
+  }
+  if (asking) {
+    return { base: asking, total: asking + DEALER_FEES, serviceFee: SERVICE_FEE, filingFee: FILING_FEE, fees: DEALER_FEES };
+  }
+  if (siteTotal) {
+    const base = siteTotal - DEALER_FEES;
+    if (base > 0) {
+      return { base, total: siteTotal, serviceFee: SERVICE_FEE, filingFee: FILING_FEE, fees: DEALER_FEES };
     }
   }
-  const tp = vehicle?.trackingPricing || {};
-  return num(tp.askingPrice) || num(vehicle?.pricing?.retailPrice) || num(tp.salePrice) || 0;
+  if (retail) {
+    return { base: retail, total: retail + DEALER_FEES, serviceFee: SERVICE_FEE, filingFee: FILING_FEE, fees: DEALER_FEES };
+  }
+  return { base: 0, total: 0, serviceFee: SERVICE_FEE, filingFee: FILING_FEE, fees: DEALER_FEES };
+}
+
+export function pickPrice(vehicle) {
+  return pickPricing(vehicle).total;
+}
+
+export function pickBasePrice(vehicle) {
+  return pickPricing(vehicle).base;
 }
 
 export function photoUrls(vehicle) {
@@ -369,7 +393,7 @@ export function fromJsonLdCar(o) {
     bodyStyle: "",
     fuelType: text(o?.fuelType),
     pricing: { retailPrice: o?.offers?.price },
-    trackingPricing: { askingPrice: o?.offers?.price },
+    trackingPricing: { internetPrice: o?.offers?.price },
     images: image ? [{ uri: image, provider: "ACTUAL_PHOTO" }] : [],
     trackingAttributes: [
       { name: "odometer", value: miles != null ? String(miles) : "" },
@@ -407,7 +431,7 @@ export function toPack(vehicle) {
   const miles = num(attr(vehicle, "odometer") || vehicle.odometer);
   const certified = isCertified(vehicle);
   const photos = photoUrls(vehicle);
-  const price = pickPrice(vehicle);
+  const pricing = pickPricing(vehicle);
   const stock = text(vehicle.stockNumber || attr(vehicle, "stockNumber"));
   const url = vdpUrl(vehicle);
   const drive = cleanDrive(attr(vehicle, "driveLine") || vehicle.driveLine || vehicle.drivetrain);
@@ -431,7 +455,12 @@ export function toPack(vehicle) {
     engine: "",
     titleStatus: "Title Clean",
     zip: DEALER.zip,
-    price: price > 0 ? String(price) : "",
+    basePrice: pricing.base > 0 ? String(pricing.base) : "",
+    serviceFee: String(SERVICE_FEE),
+    filingFee: String(FILING_FEE),
+    dealerFees: String(DEALER_FEES),
+    price: pricing.total > 0 ? String(pricing.total) : "",
+    priceIncludesDealerFees: true,
     title: [vehicle.year, make, model, trim, bodyStyle].filter(Boolean).join(" "),
     rooftop: DEALER.name,
     photoUrls: photos,

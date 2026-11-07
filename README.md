@@ -9,9 +9,9 @@ This build is pre-owned only. New Lexus inventory is not loaded. Pre-owned inclu
 **Dealer (public site):** [Lexus of Brookfield](https://www.lexusofbrookfield.com/) · 20001 W Bluemound Rd, Brookfield, WI 53045 · Sales 262-320-4619
 
 ## Install
-1. Clone this folder, or unzip `dist/lot-linker-fill.zip` from `bash scripts/build-zip.sh`
-2. Chrome → `chrome://extensions` → Developer mode → Load unpacked → this folder (`manifest.json`)
-3. If you previously used Lot Linker at Lake Country Nissan / Hyundai, click **Refresh packs** (or remove the unpacked extension and load this folder again) so old inventory is not kept in Chrome storage.
+1. Unzip `LotLinker.zip` (or `dist/LotLinker.zip` from `bash scripts/build-zip.sh`)
+2. Chrome → `chrome://extensions` → Developer mode → Load unpacked → the `lot-linker-fill` folder (`manifest.json` is in that folder)
+3. If an older Lot Linker is already loaded, click **Reload** on that card. If you previously used Lake Country packs or the 43-unit Brookfield seed, click **Refresh packs** (or Remove and Load unpacked again) so Chrome storage does not keep an old override.
 
 ## Use
 1. Open Facebook Marketplace → create **vehicle** listing (`/marketplace/create/vehicle` or equivalent)
@@ -26,7 +26,7 @@ Model line and description are generated at fill time from pack fields (`year`, 
 ## Model line (Facebook vehicle create)
 `{Model} {Trim} | {engine or drivetrain or body} | ${price} | Brookfield WI`
 
-Example: `NX 350 Premium | AWD | $43,999 | Brookfield WI` — no year, no make in this string. Year and Make are filled in their own dropdowns. Price field gets digits only (`43999`), not `$43,999`. Advertised price is the vehicle price (not dealer document fees).
+Example: `NX 350 Premium | AWD | $44,516 | Brookfield WI` — no year, no make in this string. Year and Make are filled in their own dropdowns. Price field gets digits only (`44516`), not `$44,516`. Advertised price is the dealer **Total Sale Price**: vehicle price plus the confirmed $479 service fee and $38 filing fee ($517). Sales tax, title, and registration are not added.
 
 ## Title
 Still built as `{Year} {Make} {Model} {Trim} | {engine or drivetrain or body} | ${price} | Brookfield WI` for preview / other use. Vehicle listings do not have a Title field.
@@ -69,7 +69,7 @@ If the public listing is blocked, a dealer-provided inventory export/feed (CSV/J
 ```
 bash scripts/build-zip.sh
 ```
-Writes `dist/lot-linker-fill-2.3.0.zip` and `dist/lot-linker-fill.zip` (unpacked folder inside the zip).
+Writes `dist/LotLinker.zip` (use this on Windows), plus `dist/lot-linker-fill-2.4.0.zip` and `dist/lot-linker-fill.zip`. Unzip and Load unpacked on the `lot-linker-fill` folder inside.
 
 ## Tests
 ```
@@ -78,6 +78,6 @@ npm run test:fixtures
 ```
 
 ## Version
-2.3.0
+2.4.0
 
 One-click Fill **first** sets **Vehicle type** to **Car/Truck** (Year/Make/etc. will not take until this is set), then writes **Year**, **Make**, **Price**, **Mileage**, **Body style**, **Exterior color**, **Interior color**, **Fuel type**, **Model** title line, **Description**, and **photos**. **VIN is never written**. Clean title and vehicle condition are never written. Description fill still walks Facebook’s vehicle-create markup. Comboboxes open then click a matching `[role=option]`. Price and Mileage use digits only.

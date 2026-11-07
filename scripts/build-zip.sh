@@ -11,6 +11,9 @@ rm -f "${OUT}"
 # Also keep a stable name for README / release notes.
 STABLE="${DIST}/lot-linker-fill.zip"
 rm -f "${STABLE}"
+# Windows downloads were dropping .zip from versioned names like 2.4.0.zip.
+LINKER="${DIST}/LotLinker.zip"
+rm -f "${LINKER}"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "${TMP}"' EXIT
@@ -34,5 +37,7 @@ cp "${ROOT}/icons/"*.png "${DEST}/icons/"
   zip -qr "${OUT}" lot-linker-fill
 )
 cp "${OUT}" "${STABLE}"
+cp "${OUT}" "${LINKER}"
 echo "wrote ${OUT}"
 echo "wrote ${STABLE}"
+echo "wrote ${LINKER}"

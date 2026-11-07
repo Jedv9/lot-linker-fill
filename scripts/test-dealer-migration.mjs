@@ -53,7 +53,7 @@ assert.match(vdpUrl(neu), /\/electric-new\//);
 assert.equal(isNewVehicle(cpo), false);
 assert.equal(isCertified(cpo), true);
 assert.equal(isListable(cpo), true);
-assert.equal(pickPrice(cpo), 43999);
+assert.equal(pickPrice(cpo), 44516);
 assert.ok(photoUrls(cpo).length >= 4);
 assert.match(vdpUrl(cpo), /^https:\/\/www\.lexusofbrookfield\.com\/certified\/LEXUS\/2024-LEXUS-NX-/);
 
@@ -91,7 +91,12 @@ assert.equal(cpoPack.year, "2024");
 assert.equal(cpoPack.make, "Lexus");
 assert.equal(cpoPack.model, "NX");
 assert.equal(cpoPack.trim, "350 Premium");
-assert.equal(cpoPack.price, "43999");
+assert.equal(cpoPack.price, "44516");
+assert.equal(cpoPack.basePrice, "43999");
+assert.equal(cpoPack.serviceFee, "479");
+assert.equal(cpoPack.filingFee, "38");
+assert.equal(cpoPack.dealerFees, "517");
+assert.equal(cpoPack.priceIncludesDealerFees, true);
 assert.equal(cpoPack.mileage, "17009");
 assert.equal(cpoPack.certified, true);
 assert.notEqual(cpoPack.condition, "NEW");
@@ -104,9 +109,9 @@ assert.doesNotMatch(cpoPack.vdpUrl, /nissanlakecountry|hyundailakecountry|bouche
 assert.ok(listing.isCurrentDealerPack(cpoPack));
 assert.equal(
   listing.pickerLabel(cpoPack),
-  "PMT3253 · 2024 Lexus NX 350 Premium · 17,009 mi · $43,999"
+  "PMT3253 · 2024 Lexus NX 350 Premium · 17,009 mi · $44,516"
 );
-assert.equal(listing.buildModelLine(cpoPack), "NX 350 Premium | AWD | $43,999 | Brookfield WI");
+assert.equal(listing.buildModelLine(cpoPack), "NX 350 Premium | AWD | $44,516 | Brookfield WI");
 assert.doesNotMatch(listing.buildModelLine(cpoPack), /2024|Lexus/);
 assert.match(listing.buildDescription(cpoPack), /Lexus of Brookfield in Brookfield, Wisconsin/);
 assert.match(listing.buildDescription(cpoPack), /L\/Certified Pre-Owned/);
@@ -149,7 +154,7 @@ assert.deepEqual(
   ["PMT3253"]
 );
 
-assert.equal(manifest.version, "2.3.0");
+assert.equal(manifest.version, "2.4.0");
 assert.ok(manifest.host_permissions.some((h) => /lexusofbrookfield\.com/.test(h)));
 assert.ok(manifest.host_permissions.some((h) => /pictures\.dealer\.com/.test(h)));
 assert.ok(!manifest.host_permissions.some((h) => /nissanlakecountry|hyundailakecountry|boucher\.com/.test(h)));
@@ -211,7 +216,7 @@ const generic = listing.fromPack({
   vdpUrl: "https://www.lexusofbrookfield.com/used/Ford/2012-Ford-F-150.htm",
   features: ["Heated Seats", "Backup Camera", "4WD"],
 });
-assert.equal(generic.modelLine, "F-150 SVT Raptor | 4WD | $26,900 | Brookfield WI");
+assert.equal(generic.modelLine, "F-150 SVT Raptor | 4WD | $27,417 | Brookfield WI");
 assert.equal(listing.vehicleType({ bodyStyle: "Crew Cab 4D", model: "F-150" }), "truck");
 assert.equal(listing.vehicleType({ bodyStyle: "Hatchback 4D", model: "Soul" }), "hatchback");
 

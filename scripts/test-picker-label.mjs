@@ -25,7 +25,7 @@ for (const pack of packs) {
 
 assert.equal(
   listing.pickerLabel(toPack(cpo)),
-  "PMT3253 · 2024 Lexus NX 350 Premium · 17,009 mi · $43,999"
+  "PMT3253 · 2024 Lexus NX 350 Premium · 17,009 mi · $44,516"
 );
 assert.equal(
   listing.pickerLabel({
@@ -38,7 +38,7 @@ assert.equal(
     price: "26900",
     rooftop: "Lexus of Brookfield",
   }),
-  "PU1392 · 2012 Ford F-150 SVT Raptor · 109,782 mi · $26,900"
+  "PU1392 · 2012 Ford F-150 SVT Raptor · 109,782 mi · $27,417"
 );
 
 console.log(`picker labels ok · ${packs.length} packs`);

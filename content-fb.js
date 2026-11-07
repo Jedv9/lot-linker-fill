@@ -412,6 +412,10 @@ function isBlankPackValue(v) {
 }
 
 function priceDigits(pack) {
+  if (typeof LotLinkerListing !== "undefined" && LotLinkerListing.advertisedPrice) {
+    const advertised = LotLinkerListing.advertisedPrice(pack);
+    if (advertised) return String(advertised);
+  }
   const n = Number(String(pack?.price ?? "").replace(/[^\d.]/g, ""));
   if (!Number.isFinite(n) || n <= 0) return "";
   return String(Math.round(n));
