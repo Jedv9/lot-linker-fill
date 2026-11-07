@@ -1,0 +1,208 @@
+{
+  "uuid": "03985068ac1816bee9b0b4cfc2d870ea",
+  "vin": "2T2GGCEZ9RC048310",
+  "stockNumber": "PMT3253",
+  "year": 2024,
+  "make": "LEXUS",
+  "model": "NX",
+  "trim": "350 Premium",
+  "bodyStyle": "SUV",
+  "type": "used",
+  "condition": "Certified Pre-Owned",
+  "certified": true,
+  "link": "/certified/LEXUS/2024-LEXUS-NX-03985068ac1816bee9b0b4cfc2d870ea.htm",
+  "title": [
+    "2024 LEXUS NX 350 Premium"
+  ],
+  "fuelType": "Gasoline",
+  "pricing": {
+    "retailPrice": "$43,999",
+    "dprice": [
+      {
+        "label": "Price",
+        "type": "MIDDLE",
+        "typeClass": "askingPrice",
+        "value": "$43,999"
+      },
+      {
+        "label": "Service Fee",
+        "type": "MIDDLE",
+        "typeClass": "documentFee",
+        "value": "$479"
+      },
+      {
+        "label": "ECT Filing Fee",
+        "type": "MIDDLE",
+        "typeClass": "deliveryFee",
+        "value": "$38"
+      },
+      {
+        "label": "Total Sale Price",
+        "type": "TOTAL",
+        "typeClass": "internetPrice",
+        "value": "$44,516",
+        "isFinalPrice": true
+      }
+    ],
+    "vehicle": {
+      "category": "AUTO"
+    },
+    "ePriceStatus": "NON_APPLICABLE"
+  },
+  "images": [
+    {
+      "alt": "2024 LEXUS NX 350 Premium SUV",
+      "id": "0",
+      "title": "2024 LEXUS NX 350 Premium SUV",
+      "uri": "https://pictures.dealer.com/l/lexusofbrookfieldwi/1471/8ceca0b87c1eb9c873abb974ed0c9558x.jpg",
+      "provider": "ACTUAL_PHOTO"
+    },
+    {
+      "alt": "2024 LEXUS NX 350 Premium SUV",
+      "id": "1",
+      "title": "2024 LEXUS NX 350 Premium SUV",
+      "uri": "https://pictures.dealer.com/l/lexusofbrookfieldwi/1286/0a763f815dd1057d0bb8d55a63642e12x.jpg",
+      "provider": "ACTUAL_PHOTO"
+    },
+    {
+      "alt": "2024 LEXUS NX 350 Premium SUV",
+      "id": "2",
+      "title": "2024 LEXUS NX 350 Premium SUV",
+      "uri": "https://pictures.dealer.com/l/lexusofbrookfieldwi/1069/93a993986eb1971c0f310d12c7234d6fx.jpg",
+      "provider": "ACTUAL_PHOTO"
+    },
+    {
+      "alt": "2024 LEXUS NX 350 Premium SUV",
+      "id": "3",
+      "title": "2024 LEXUS NX 350 Premium SUV",
+      "uri": "https://pictures.dealer.com/l/lexusofbrookfieldwi/1153/ee49a2a1644bf7bf1789eb495f502087x.jpg",
+      "provider": "ACTUAL_PHOTO"
+    },
+    {
+      "alt": "2024 LEXUS NX 350 Premium SUV",
+      "id": "4",
+      "title": "2024 LEXUS NX 350 Premium SUV",
+      "uri": "https://pictures.dealer.com/l/lexusofbrookfieldwi/0110/82069abd5a209217fe568f4d1652fe18x.jpg",
+      "provider": "ACTUAL_PHOTO"
+    },
+    {
+      "alt": "2024 LEXUS NX 350 Premium SUV",
+      "id": "5",
+      "title": "2024 LEXUS NX 350 Premium SUV",
+      "uri": "https://pictures.dealer.com/l/lexusofbrookfieldwi/1630/5daae5032d14cdec2b7b28c12f5d1438x.jpg",
+      "provider": "ACTUAL_PHOTO"
+    },
+    {
+      "alt": "2024 LEXUS NX 350 Premium SUV",
+      "id": "6",
+      "title": "2024 LEXUS NX 350 Premium SUV",
+      "uri": "https://pictures.dealer.com/l/lexusofbrookfieldwi/0221/4b05cab72a27ab9945086c9be41b9e83x.jpg",
+      "provider": "ACTUAL_PHOTO"
+    },
+    {
+      "alt": "2024 LEXUS NX 350 Premium SUV",
+      "id": "7",
+      "title": "2024 LEXUS NX 350 Premium SUV",
+      "uri": "https://pictures.dealer.com/l/lexusofbrookfieldwi/1709/d5cbab4481a27060480fdf83a4cf4227x.jpg",
+      "provider": "ACTUAL_PHOTO"
+    }
+  ],
+  "attributes": [
+    {
+      "name": "engine",
+      "label": "Engine",
+      "value": "2.4L I-4 cyl",
+      "labeledValue": "2.4L I-4 cyl Engine"
+    },
+    {
+      "name": "transmission",
+      "label": "Transmission",
+      "value": "8-Speed Automatic w/OD",
+      "labeledValue": "8-Speed Automatic w/OD "
+    },
+    {
+      "name": "exteriorColor",
+      "label": "Exterior Color",
+      "value": "Caviar",
+      "normalizedValue": "Black",
+      "labeledValue": "Caviar Exterior"
+    },
+    {
+      "name": "interiorColor",
+      "label": "Interior Color",
+      "value": "Hazel",
+      "normalizedValue": "Brown",
+      "labeledValue": "Hazel Interior"
+    },
+    {
+      "name": "stockNumber",
+      "label": "Stock Number",
+      "value": "PMT3253",
+      "labeledValue": "Stock # PMT3253 "
+    },
+    {
+      "name": "modelCode",
+      "label": "Model Code",
+      "value": "9835",
+      "labeledValue": "Model Code: 9835 "
+    }
+  ],
+  "trackingAttributes": [
+    {
+      "name": "doors",
+      "value": "4 door"
+    },
+    {
+      "name": "driveLine",
+      "value": "All-Wheel Drive"
+    },
+    {
+      "name": "odometer",
+      "value": "17009"
+    },
+    {
+      "name": "engineSize",
+      "value": "2.4L"
+    },
+    {
+      "name": "autodataCaId",
+      "value": "CAD40LES251A0"
+    },
+    {
+      "name": "exteriorColor",
+      "value": "Caviar",
+      "normalizedValue": "Black"
+    },
+    {
+      "name": "fuelType",
+      "value": "Premium Unleaded"
+    },
+    {
+      "name": "normalFuelType",
+      "value": "Gasoline"
+    },
+    {
+      "name": "transmission",
+      "value": "8-Speed Automatic w/OD"
+    },
+    {
+      "name": "engine",
+      "value": "I-4 cyl"
+    },
+    {
+      "name": "interiorColor",
+      "value": "Hazel",
+      "normalizedValue": "Brown"
+    }
+  ],
+  "trackingPricing": {
+    "internetPrice": "$44,516",
+    "salePrice": "43999",
+    "retailValue": "44998",
+    "msrp": "44998",
+    "askingPrice": "$43,999"
+  },
+  "classification": "primary",
+  "status": "live",
+  "accountId": "lexusofbrookfieldwi"
+}

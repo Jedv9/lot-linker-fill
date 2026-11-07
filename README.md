@@ -1,12 +1,17 @@
 # Lot Linker Fill
 
-Chrome MV3 extension for Lake Country Nissan / Hyundai. Pick a stock number and **Fill** Facebook Marketplace vehicle **Year**, **Make**, **Price**, **Mileage**, **Body style**, **Exterior color**, **Interior color**, **Fuel type**, **Model**, **Description**, and **photos** in one click. You always hit Post. VIN, clean title, and vehicle condition are never touched.
+Chrome MV3 extension for **Lexus of Brookfield** pre-owned inventory (used + L/Certified). Pick a stock number and **Fill** Facebook Marketplace vehicle **Year**, **Make**, **Price**, **Mileage**, **Body style**, **Exterior color**, **Interior color**, **Fuel type**, **Model**, **Description**, and **photos** in one click. You always hit Post. VIN, clean title, and vehicle condition are never touched.
+
+This build is pre-owned only. New Lexus inventory is not loaded. Pre-owned includes other makes on the Brookfield lot, not only Lexus. L/Certified units that appear in pre-owned / certified inventory are included.
 
 **Repo:** https://github.com/Jedv9/lot-linker-fill
+
+**Dealer (public site):** [Lexus of Brookfield](https://www.lexusofbrookfield.com/) · 20001 W Bluemound Rd, Brookfield, WI 53045 · Sales 262-320-4619
 
 ## Install
 1. Clone this folder, or unzip `dist/lot-linker-fill.zip` from `bash scripts/build-zip.sh`
 2. Chrome → `chrome://extensions` → Developer mode → Load unpacked → this folder (`manifest.json`)
+3. If you previously used Lot Linker at Lake Country Nissan / Hyundai, click **Refresh packs** (or remove the unpacked extension and load this folder again) so old inventory is not kept in Chrome storage.
 
 ## Use
 1. Open Facebook Marketplace → create **vehicle** listing (`/marketplace/create/vehicle` or equivalent)
@@ -19,35 +24,58 @@ Jed should not download photos separately. **Save photos (fallback)** is only if
 Model line and description are generated at fill time from pack fields (`year`, `make`, `model`, `trim`, `price`, `mileage`, `stock`, `rooftop`, `bodyStyle`, `drivetrain`, `engine` if present, plus verified features from `features` / `equipment` / pack `body` standouts). **Year**, **Make**, **Price**, **Mileage**, **Body style**, **Exterior color**, **Interior color**, and **Fuel type** are written into their own Marketplace fields when the pack has a value we can map. VIN is never filled. The clean-title checkbox and vehicle condition are left alone.
 
 ## Model line (Facebook vehicle create)
-`{Model} {Trim} | {engine or drivetrain or body} | ${price} | Oconomowoc WI`
+`{Model} {Trim} | {engine or drivetrain or body} | ${price} | Brookfield WI`
 
-Example: `F-150 SVT Raptor | 4WD | $26,900 | Oconomowoc WI` — no year, no make in this string. Year and Make are filled in their own dropdowns. Price field gets digits only (`26900`), not `$26,900`.
+Example: `NX 350 Premium | AWD | $43,999 | Brookfield WI` — no year, no make in this string. Year and Make are filled in their own dropdowns. Price field gets digits only (`43999`), not `$43,999`. Advertised price is the vehicle price (not dealer document fees).
 
 ## Title
-Still built as `{Year} {Make} {Model} {Trim} | {engine or drivetrain or body} | ${price} | Oconomowoc WI` for preview / other use. Vehicle listings do not have a Title field.
+Still built as `{Year} {Make} {Model} {Trim} | {engine or drivetrain or body} | ${price} | Brookfield WI` for preview / other use. Vehicle listings do not have a Title field.
 
 ## Description
-Multi-line Wisconsin shopper copy: vehicle type, Boucher Lake Country Nissan or Hyundai, price, mileage, stock, up to **5** Key equipment bullets in Jed’s locked order (heated seats → CarPlay/Android Auto → camera/BSM/sensors → power seats → AWD/4WD, then leather / premium audio / moonroof / adaptive cruise / remote start / power liftgate). Never invent; never baseline fluff.
+Multi-line Wisconsin shopper copy: vehicle type, Lexus of Brookfield, price, mileage, stock, up to **5** Key equipment bullets in Jed’s locked order (heated seats → CarPlay/Android Auto → camera/BSM/sensors → power seats → AWD/4WD, then leather / premium audio / moonroof / adaptive cruise / remote start / power liftgate). L/Certified units are labeled in the availability line. Never invent; never baseline fluff.
 
 If a stock has fewer than 5 verified hits, the popup researches that vehicle’s VDP (`vdpUrl`) and NHTSA VIN decode (AWD/4WD only), 10s timeout, then falls back to pack features.
 
 ## Photos
-Fill fetches unit photos from pack `photoUrls` and/or the VDP page (`vehicle-images.carscommerce.inc` and a few dealer CDNs), strips the Boucher red banner (same crop as v1.6), and assigns `File` objects onto Marketplace’s `<input type="file" multiple>` (or dropzone). Status reports `filled model · description · N photos` or `missed: photos` with a reason.
+Fill fetches unit photos from pack `photoUrls` and/or the VDP page (`pictures.dealer.com` and a few dealer CDNs). A red dealer banner is cropped only when that banner is actually detected — Brookfield unit photos are not force-cropped. Status reports `filled model · description · N photos` or `missed: photos` with a reason.
 
-The service worker does the fetch + strip so Facebook is not sent as `Referer`. Host permissions cover dealer VDPs and photo CDNs. The content script waits/retries for the photo picker (slow create-page loads) and never clicks Post / Publish / Next.
+The service worker does the fetch so Facebook is not sent as `Referer`. Host permissions cover the Lexus of Brookfield site and photo CDNs. The content script waits/retries for the photo picker (slow create-page loads) and never clicks Post / Publish / Next.
 
 Facebook caveats: the picker is often a hidden file input behind “Add photos”. Marketplace may cap how many images stick; extras are dropped by FB, not posted. If the composer has not reached the vehicle photo step, Fill reports a missed photo picker — stay on create/vehicle and retry.
 
 ## Packs
-Bundled `packs.json` loads on open. **Refresh packs** pulls the latest `packs.json` from this repo (optional `chrome.storage` override).
+Bundled `packs.json` loads on open. **Refresh packs** pulls the latest `packs.json` from this repo (optional `chrome.storage` override). Packs from the old Lake Country rooftops are ignored so they cannot silently replace Brookfield inventory.
+
+Weekly GitHub Action: `scripts/scrape-inventory.mjs` reads the public dealer.com pages:
+
+- Pre-owned: https://www.lexusofbrookfield.com/used-inventory/index.htm
+- L/Certified: https://www.lexusofbrookfield.com/l-certified-inventory/index.htm
+
+New inventory (`/new-inventory/index.htm`, `/new/`, `/electric-new/`) is excluded. VDP URLs look like `/used/{Make}/{Year}-{Make}-{Model}-{id}.htm` and `/certified/LEXUS/...` (hybrids may use `/electric-certified/`).
+
+Local refresh:
+
+```
+npm install
+npx playwright install --with-deps chromium
+node scripts/scrape-inventory.mjs
+```
+
+The dealer site is behind Akamai bot detection. Datacenter IPs often get HTTP 429 on `/used-inventory` pagination and make-facet pages after a few requests; GitHub Actions (`Update inventory`) or a residential network usually gets the full used + L/Certified lot, including non-Lexus pre-owned. Do not point the scraper at the old Nissan/Hyundai sites.
 
 ## Package
 ```
 bash scripts/build-zip.sh
 ```
-Writes `dist/lot-linker-fill-2.2.4.zip` and `dist/lot-linker-fill.zip` (unpacked folder inside the zip).
+Writes `dist/lot-linker-fill-2.3.0.zip` and `dist/lot-linker-fill.zip` (unpacked folder inside the zip).
+
+## Tests
+```
+npm test
+npm run test:fixtures
+```
 
 ## Version
-2.2.4
+2.3.0
 
 One-click Fill **first** sets **Vehicle type** to **Car/Truck** (Year/Make/etc. will not take until this is set), then writes **Year**, **Make**, **Price**, **Mileage**, **Body style**, **Exterior color**, **Interior color**, **Fuel type**, **Model** title line, **Description**, and **photos**. **VIN is never written**. Clean title and vehicle condition are never written. Description fill still walks Facebook’s vehicle-create markup. Comboboxes open then click a matching `[role=option]`. Price and Mileage use digits only.

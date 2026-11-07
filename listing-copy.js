@@ -10,8 +10,12 @@
     root.LotLinkerListing = api;
   }
 })(typeof self !== "undefined" ? self : this, function () {
-  const CITY = "Oconomowoc";
-  const CITY_TITLE = "Oconomowoc WI";
+  const CITY = "Brookfield";
+  const CITY_TITLE = "Brookfield WI";
+  const STORE = "Lexus of Brookfield";
+  const OLD_DEALER_RE =
+    /nissanlakecountry|hyundailakecountry|\bboucher\b|lake country nissan|lake country hyundai|oconomowoc/i;
+  const CURRENT_DEALER_RE = /lexus of brookfield|lexusofbrookfield/i;
   const HYPE_RE =
     /apr|\b0\s?%|cash ?back|down payment|limited time|act now|call (now|jed)|ask for|financ(e|ing) as|no credit|\bhype\b|price does not/i;
   const PLACEHOLDER_RE = /^(\[need\]|n\/?a|unknown|tbd|none|-)$/i;
@@ -91,14 +95,20 @@
     return shortBody(pack.bodyStyle);
   }
 
-  function storeName(pack) {
-    const rooftop = text(pack.rooftop);
-    const make = text(pack.make);
-    if (/hyundai/i.test(rooftop)) return "Boucher Lake Country Hyundai";
-    if (/nissan/i.test(rooftop)) return "Boucher Lake Country Nissan";
-    if (/hyundai/i.test(make)) return "Boucher Lake Country Hyundai";
-    if (/nissan/i.test(make)) return "Boucher Lake Country Nissan";
-    return "Boucher Lake Country Nissan";
+  function storeName(_pack) {
+    return STORE;
+  }
+
+  function isCertified(pack) {
+    if (!pack) return false;
+    if (pack.certified === true) return true;
+    return /cpo|certified/i.test(text(pack.condition) + " " + text(pack.type));
+  }
+
+  function isCurrentDealerPack(pack) {
+    const hay = [pack?.rooftop, pack?.vdpUrl, pack?.source].join(" ");
+    if (OLD_DEALER_RE.test(hay)) return false;
+    return CURRENT_DEALER_RE.test(hay);
   }
 
   function shortModel(model) {
@@ -230,7 +240,7 @@
     const used = new Set(slots.map((s) => s.toLowerCase()));
     const fillers = [
       pickFirst(cands, (s) => /leather/i.test(s)),
-      pickFirst(cands, (s) => /premium audio|\bbose\b|\bsony\b/i.test(s)),
+      pickFirst(cands, (s) => /premium audio|\bbose\b|\bsony\b|mark levinson|lexicon|\bb&o\b|bang & olufsen/i.test(s)),
       pickFirst(cands, (s) => /moonroof|sunroof|panoramic/i.test(s)),
       pickFirst(
         cands,
@@ -277,6 +287,7 @@
     /premium audio(?: system)?/gi,
     /\bBose\b(?: premium audio)?/gi,
     /\bSony\b(?: audio| sound)?/gi,
+    /Mark Levinson(?: audio| premium audio)?/gi,
     /moonroof(?: \/ panoramic roof)?/gi,
     /sunroof/gi,
     /panoramic (?:sunroof|moonroof|roof)/gi,
@@ -428,6 +439,9 @@
     const price = formatPrice(pack.price);
     const ymm = [pack.year, pack.make, pack.model].map(text).filter(Boolean).join(" ");
     const store = storeName(pack);
+    const ymmLine = isCertified(pack)
+      ? `${ymm} (L/Certified Pre-Owned) is available at ${store} in ${CITY}, Wisconsin.`
+      : `${ymm} is available at ${store} in ${CITY}, Wisconsin.`;
     const miles = formatMileage(pack);
     const stock = text(pack.stock);
     const features = keyEquipment(pack);
@@ -438,7 +452,7 @@
     return [
       `Wisconsin shoppers looking for a ${type} under $${price}:`,
       "",
-      `${ymm} is available at ${store} in ${CITY}, Wisconsin.`,
+      ymmLine,
       "",
       `Price: $${price}`,
       `Mileage: ${miles}`,
@@ -468,6 +482,7 @@
   return {
     CITY,
     CITY_TITLE,
+    STORE,
     buildTitle,
     buildModelLine,
     buildDescription,
@@ -480,6 +495,8 @@
     driveFromNhtsa,
     vehicleType,
     storeName,
+    isCertified,
+    isCurrentDealerPack,
     shortModel,
     keySpec,
     keyEquipment,

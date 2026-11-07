@@ -14,14 +14,14 @@ for (const b of blocks) {
   const filters = (b.match(/\*\*Filters:\*\*\s*(.+)/) || [,""])[1];
   const parts = filters.split("|").map((s) => s.trim());
   const p = (i, d = "") => (parts[i] != null ? parts[i] : d);
-  let zip = (p(15, "53066") || "53066").replace(/^zip\s*/i, "").trim() || "53066";
+  let zip = (p(15, "53045") || "53045").replace(/^zip\s*/i, "").trim() || "53045";
   const priceRaw = grab("PRICE");
   packs.push({
     stock, year: p(0), make: p(1), model: p(2), trim: p(3), bodyStyle: p(4),
     mileage: p(5), vin: p(6), condition: p(7), exterior: p(8), interior: p(9),
     transmission: p(10), fuel: p(11), drivetrain: p(12), titleStatus: p(13),
     zip, price: priceRaw.replace(/[^\d.]/g, ""), title: grab("TITLE"), body: grab("BODY"),
-    rooftop: grab("BODY").includes("Hyundai") ? "Lake Country Hyundai" : "Lake Country Nissan",
+    rooftop: "Lexus of Brookfield",
   });
 }
 fs.writeFileSync(dest, JSON.stringify({ generated: new Date().toISOString().slice(0,10), source: src, count: packs.length, packs }, null, 2));

@@ -1,0 +1,197 @@
+{
+  "uuid": "9252e11eac180486dccee4dfe3b5f3d7",
+  "vin": "JTHBDCD18T2002507",
+  "stockNumber": "30336",
+  "year": 2026,
+  "make": "LEXUS",
+  "model": "ES",
+  "trim": "500e Luxury",
+  "bodyStyle": "SEDAN",
+  "type": "new",
+  "condition": "New",
+  "certified": false,
+  "link": "/electric-new/LEXUS/2026-LEXUS-ES-9252e11eac180486dccee4dfe3b5f3d7.htm",
+  "title": [
+    "2026 LEXUS ES 500e Luxury"
+  ],
+  "fuelType": "Electric",
+  "pricing": {
+    "retailPrice": "$63,798",
+    "dprice": [
+      {
+        "label": "MSRP + DPH",
+        "type": "MIDDLE",
+        "typeClass": "msrp",
+        "value": "$63,798"
+      },
+      {
+        "label": "Service Fee",
+        "type": "MIDDLE",
+        "typeClass": "documentFee",
+        "value": "$479"
+      },
+      {
+        "label": "ECT Filing Fee",
+        "type": "MIDDLE",
+        "typeClass": "deliveryFee",
+        "value": "$38"
+      },
+      {
+        "label": "Total Sale Price",
+        "type": "TOTAL",
+        "typeClass": "internetPrice",
+        "value": "$64,315",
+        "isFinalPrice": true
+      }
+    ],
+    "vehicle": {
+      "category": "AUTO"
+    },
+    "ePriceStatus": "NON_APPLICABLE"
+  },
+  "images": [
+    {
+      "alt": "2026 LEXUS ES 500e Luxury SEDAN",
+      "id": "0",
+      "title": "2026 LEXUS ES 500e Luxury SEDAN",
+      "uri": "https://pictures.dealer.com/l/lexusofbrookfieldwi/1551/24f6fac736ebc0328d845cd7f412891cx.jpg",
+      "provider": "ACTUAL_PHOTO"
+    },
+    {
+      "alt": "2026 LEXUS ES 500e Luxury SEDAN",
+      "id": "1",
+      "title": "2026 LEXUS ES 500e Luxury SEDAN",
+      "uri": "https://pictures.dealer.com/l/lexusofbrookfieldwi/0610/c5653cfe8939c3dbd8d2da97031a38c9x.jpg",
+      "provider": "ACTUAL_PHOTO"
+    },
+    {
+      "alt": "2026 LEXUS ES 500e Luxury SEDAN",
+      "id": "2",
+      "title": "2026 LEXUS ES 500e Luxury SEDAN",
+      "uri": "https://pictures.dealer.com/l/lexusofbrookfieldwi/1257/cd29ce944647cf2fd60abf018cbe9554x.jpg",
+      "provider": "ACTUAL_PHOTO"
+    },
+    {
+      "alt": "2026 LEXUS ES 500e Luxury SEDAN",
+      "id": "3",
+      "title": "2026 LEXUS ES 500e Luxury SEDAN",
+      "uri": "https://pictures.dealer.com/l/lexusofbrookfieldwi/1566/6ba8183a3a5ed30b648bcff77873286fx.jpg",
+      "provider": "ACTUAL_PHOTO"
+    },
+    {
+      "alt": "2026 LEXUS ES 500e Luxury SEDAN",
+      "id": "4",
+      "title": "2026 LEXUS ES 500e Luxury SEDAN",
+      "uri": "https://pictures.dealer.com/l/lexusofbrookfieldwi/0684/87baf3002092751f35148ae5e7be9cc9x.jpg",
+      "provider": "ACTUAL_PHOTO"
+    },
+    {
+      "alt": "2026 LEXUS ES 500e Luxury SEDAN",
+      "id": "5",
+      "title": "2026 LEXUS ES 500e Luxury SEDAN",
+      "uri": "https://pictures.dealer.com/l/lexusofbrookfieldwi/1734/d7d4c4d88304da536119beb326d35c34x.jpg",
+      "provider": "ACTUAL_PHOTO"
+    },
+    {
+      "alt": "2026 LEXUS ES 500e Luxury SEDAN",
+      "id": "6",
+      "title": "2026 LEXUS ES 500e Luxury SEDAN",
+      "uri": "https://pictures.dealer.com/l/lexusofbrookfieldwi/1415/1d8459409b3bf9016f1c7e0d8a4b46f3x.jpg",
+      "provider": "ACTUAL_PHOTO"
+    }
+  ],
+  "attributes": [
+    {
+      "name": "engine",
+      "label": "Engine",
+      "value": "0.0L",
+      "labeledValue": "0.0L Engine"
+    },
+    {
+      "name": "transmission",
+      "label": "Transmission",
+      "value": "1-Speed Automatic",
+      "labeledValue": "1-Speed Automatic "
+    },
+    {
+      "name": "exteriorColor",
+      "label": "Exterior Color",
+      "value": "Caviar",
+      "normalizedValue": "Black",
+      "labeledValue": "Caviar Exterior"
+    },
+    {
+      "name": "interiorColor",
+      "label": "Interior Color",
+      "value": "White Semi-Aniline Leather and Bamboo Layering Tri",
+      "normalizedValue": "White",
+      "labeledValue": "White Semi-Aniline Leather and Bamboo Layering Tri Interior"
+    },
+    {
+      "name": "stockNumber",
+      "label": "Stock Number",
+      "value": "30336",
+      "labeledValue": "Stock # 30336 "
+    },
+    {
+      "name": "modelCode",
+      "label": "Model Code",
+      "value": "9037",
+      "labeledValue": "Model Code: 9037 "
+    }
+  ],
+  "trackingAttributes": [
+    {
+      "name": "fuelType",
+      "value": "Electric"
+    },
+    {
+      "name": "doors",
+      "value": "4 door"
+    },
+    {
+      "name": "interiorColor",
+      "value": "White Semi-Aniline Leather and Bamboo Layering Tri",
+      "normalizedValue": "White"
+    },
+    {
+      "name": "transmission",
+      "value": "1-Speed Automatic"
+    },
+    {
+      "name": "deliveryDateRange",
+      "value": "2026-10-08 - 2026-10-12"
+    },
+    {
+      "name": "autodataCaId",
+      "value": "CAD60LEC411A0"
+    },
+    {
+      "name": "driveLine",
+      "value": "AWD"
+    },
+    {
+      "name": "exteriorColor",
+      "value": "Caviar",
+      "normalizedValue": "Black"
+    },
+    {
+      "name": "engineSize",
+      "value": "0.0L"
+    },
+    {
+      "name": "normalFuelType",
+      "value": "Electric"
+    }
+  ],
+  "trackingPricing": {
+    "internetPrice": "$64,315",
+    "salePrice": "63798",
+    "retailValue": "63798",
+    "msrp": "$63,798",
+    "askingPrice": "63798"
+  },
+  "classification": "primary",
+  "status": "live",
+  "accountId": "lexusofbrookfieldwi"
+}
