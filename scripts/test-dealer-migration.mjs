@@ -158,6 +158,9 @@ assert.match(scraper, /lexusofbrookfield\.com|PREOWNED_SOURCES/);
 assert.match(dealerMod, /used-inventory/);
 assert.match(dealerMod, /l-certified-inventory/);
 assert.match(scraper, /isNewVehicle/);
+assert.match(scraper, /Retry-After/);
+assert.match(scraper, /shouldWritePacks/);
+assert.match(scraper, /dedupeVehicles/);
 assert.doesNotMatch(scraper, /www\.nissanlakecountry|www\.hyundailakecountry/);
 assert.doesNotMatch(dealerMod, /www\.nissanlakecountry|www\.hyundailakecountry/);
 assert.match(popup, /currentDealerPacks/);
@@ -186,6 +189,12 @@ assert.ok(
   packsDoc.packs.some((p) => p.certified || /cpo|certified/i.test(p.condition)),
   "CPO units must be in pre-owned packs"
 );
+if (packsDoc.complete) {
+  assert.ok(Number(packsDoc.expectedTotal) > 0);
+  assert.ok(packsDoc.packs.length >= packsDoc.expectedTotal, `complete bundle ${packsDoc.packs.length} < ${packsDoc.expectedTotal}`);
+  assert.ok(makes.size >= 10, `complete bundle must include other makes, got ${[...makes].join(",")}`);
+  assert.ok(packsDoc.packs.some((p) => !/^lexus$/i.test(p.make)), "complete bundle is not Lexus-only");
+}
 
 const generic = listing.fromPack({
   stock: "PU1392",

@@ -145,14 +145,18 @@ export function isCertified(vehicle) {
   return false;
 }
 
-export function isListable(vehicle, { minPhotos = MIN_PHOTOS } = {}) {
+export function isPreownedListing(vehicle) {
   if (!vehicle) return false;
   if (isNewVehicle(vehicle)) return false;
-  if (!pickPrice(vehicle)) return false;
-  if (photoUrls(vehicle).length < minPhotos) return false;
   const stock = text(vehicle.stockNumber || attr(vehicle, "stockNumber"));
   const vin = text(vehicle.vin);
-  if (!stock && !vin) return false;
+  return Boolean(stock || vin);
+}
+
+export function isListable(vehicle, { minPhotos = MIN_PHOTOS, requirePrice = true } = {}) {
+  if (!isPreownedListing(vehicle)) return false;
+  if (requirePrice && !pickPrice(vehicle)) return false;
+  if (photoUrls(vehicle).length < minPhotos) return false;
   return true;
 }
 
@@ -207,6 +211,86 @@ export function extractTotalCount(html) {
   if (best) return best;
   const ld = raw.match(/Browse our inventory of\s+(\d+)/i);
   return ld ? Number(ld[1]) || 0 : 0;
+}
+
+export function extractMakeFacets(html) {
+  const raw = String(html || "");
+  const idx = raw.search(/"id"\s*:\s*"make"\s*,\s*"label"\s*:\s*"Make"/);
+  if (idx < 0) return [];
+  const valuesAt = raw.indexOf('"values":', idx);
+  if (valuesAt < 0) return [];
+  const arr = extractJsonArrayAt(raw, valuesAt);
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .filter((v) => v && v.value && v.type === "BASIC")
+    .map((v) => ({
+      value: text(v.value),
+      make: prettyMake(v.value) || text(v.value),
+      label: text(v.label || v.value),
+      count: Number(v.count) || 0,
+    }));
+}
+
+export function extractNextListingUrls(html, site = DEALER.site) {
+  const raw = String(html || "");
+  const out = [];
+  const seen = new Set();
+  const add = (href) => {
+    if (!href) return;
+    const url = href.startsWith("http") ? href : `${site}${href.startsWith("/") ? "" : "/"}${href}`;
+    if (!/used-inventory|l-certified-inventory|certified-inventory/i.test(url)) return;
+    if (seen.has(url)) return;
+    seen.add(url);
+    out.push(url);
+  };
+  const next = raw.match(/rel=["']next["']\s+href=["']([^"']+)["']/i) || raw.match(/href=["']([^"']+)["']\s+rel=["']next["']/i);
+  if (next) add(next[1]);
+  for (const m of raw.matchAll(/href=["']([^"']*start=\d+[^"']*)["']/gi)) add(m[1]);
+  return out;
+}
+
+export function makeFacetTotal(facets) {
+  return (facets || []).reduce((n, f) => n + (Number(f.count) || 0), 0);
+}
+
+export function makeBreakdown(vehicles) {
+  const counts = {};
+  for (const v of vehicles || []) {
+    const make = prettyMake(v.make) || text(v.make) || "Unknown";
+    counts[make] = (counts[make] || 0) + 1;
+  }
+  return counts;
+}
+
+export function collectionComplete({ expectedTotal, uniqueCount }) {
+  const expected = Number(expectedTotal) || 0;
+  const got = Number(uniqueCount) || 0;
+  return expected > 0 && got >= expected;
+}
+
+export function shouldWritePacks({ complete, previousCount = 0, newCount = 0 }) {
+  if (complete) return { write: true, reason: "complete vs site total" };
+  if (previousCount > 0 && newCount < previousCount) {
+    return { write: false, reason: "partial collection would replace a larger existing bundle" };
+  }
+  return { write: false, reason: "incomplete vs site total; keeping previous packs.json" };
+}
+
+export function extractPreownedSitemapUrls(html, site = DEALER.site) {
+  const hrefs = String(html || "").match(/href=['"]([^'"]+)['"]/gi) || [];
+  const out = [];
+  const seen = new Set();
+  for (const raw of hrefs) {
+    const m = raw.match(/href=['"]([^'"]+)['"]/i);
+    const href = m ? m[1] : "";
+    if (!/(?:\/used\/|\/certified\/|\/electric-certified\/)/i.test(href)) continue;
+    if (/\/new\/|\/electric-new\//i.test(href)) continue;
+    const url = href.startsWith("http") ? href : `${site}${href.startsWith("/") ? "" : "/"}${href}`;
+    if (seen.has(url)) continue;
+    seen.add(url);
+    out.push(url);
+  }
+  return out;
 }
 
 function extractJsonArrayAt(raw, startHint) {

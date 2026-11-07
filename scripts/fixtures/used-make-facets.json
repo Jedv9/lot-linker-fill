@@ -1,0 +1,150 @@
+{
+  "id": "make",
+  "values": [
+    {
+      "count": 50,
+      "label": "Lexus",
+      "type": "BASIC",
+      "value": "Lexus"
+    },
+    {
+      "count": 1,
+      "label": "Acura",
+      "type": "BASIC",
+      "value": "Acura"
+    },
+    {
+      "count": 6,
+      "label": "Audi",
+      "type": "BASIC",
+      "value": "Audi"
+    },
+    {
+      "count": 7,
+      "label": "BMW",
+      "type": "BASIC",
+      "value": "BMW"
+    },
+    {
+      "count": 1,
+      "label": "Buick",
+      "type": "BASIC",
+      "value": "Buick"
+    },
+    {
+      "count": 1,
+      "label": "CADILLAC",
+      "type": "BASIC",
+      "value": "CADILLAC"
+    },
+    {
+      "count": 4,
+      "label": "Chevrolet",
+      "type": "BASIC",
+      "value": "Chevrolet"
+    },
+    {
+      "count": 1,
+      "label": "Chrysler",
+      "type": "BASIC",
+      "value": "Chrysler"
+    },
+    {
+      "count": 3,
+      "label": "Ford",
+      "type": "BASIC",
+      "value": "Ford"
+    },
+    {
+      "count": 1,
+      "label": "Genesis",
+      "type": "BASIC",
+      "value": "Genesis"
+    },
+    {
+      "count": 1,
+      "label": "GMC",
+      "type": "BASIC",
+      "value": "GMC"
+    },
+    {
+      "count": 4,
+      "label": "Honda",
+      "type": "BASIC",
+      "value": "Honda"
+    },
+    {
+      "count": 1,
+      "label": "Hyundai",
+      "type": "BASIC",
+      "value": "Hyundai"
+    },
+    {
+      "count": 1,
+      "label": "Jaguar",
+      "type": "BASIC",
+      "value": "Jaguar"
+    },
+    {
+      "count": 5,
+      "label": "Jeep",
+      "type": "BASIC",
+      "value": "Jeep"
+    },
+    {
+      "count": 1,
+      "label": "Kia",
+      "type": "BASIC",
+      "value": "Kia"
+    },
+    {
+      "count": 2,
+      "label": "Mazda",
+      "type": "BASIC",
+      "value": "Mazda"
+    },
+    {
+      "count": 4,
+      "label": "Mercedes-Benz",
+      "type": "BASIC",
+      "value": "Mercedes-Benz"
+    },
+    {
+      "count": 1,
+      "label": "MINI",
+      "type": "BASIC",
+      "value": "MINI"
+    },
+    {
+      "count": 1,
+      "label": "Nissan",
+      "type": "BASIC",
+      "value": "Nissan"
+    },
+    {
+      "count": 1,
+      "label": "Subaru",
+      "type": "BASIC",
+      "value": "Subaru"
+    },
+    {
+      "count": 9,
+      "label": "Toyota",
+      "type": "BASIC",
+      "value": "Toyota"
+    },
+    {
+      "count": 2,
+      "label": "Volkswagen",
+      "type": "BASIC",
+      "value": "Volkswagen"
+    },
+    {
+      "count": 2,
+      "label": "Volvo",
+      "type": "BASIC",
+      "value": "Volvo"
+    }
+  ],
+  "totalCount": 110
+}

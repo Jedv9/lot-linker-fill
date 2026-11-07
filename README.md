@@ -46,12 +46,14 @@ Facebook caveats: the picker is often a hidden file input behind â€œAdd photosâ€
 ## Packs
 Bundled `packs.json` loads on open. **Refresh packs** pulls the latest `packs.json` from this repo (optional `chrome.storage` override). Packs from the old Lake Country rooftops are ignored so they cannot silently replace Brookfield inventory.
 
-Weekly GitHub Action: `scripts/scrape-inventory.mjs` reads the public dealer.com pages:
+Weekly GitHub Action: `scripts/scrape-inventory.mjs` reads the public dealer.com listing pages (HTML + JSON-LD, including `?start=` pagination and `?make=` filters):
 
-- Pre-owned: https://www.lexusofbrookfield.com/used-inventory/index.htm
+- Pre-owned (all makes): https://www.lexusofbrookfield.com/used-inventory/index.htm
 - L/Certified: https://www.lexusofbrookfield.com/l-certified-inventory/index.htm
 
-New inventory (`/new-inventory/index.htm`, `/new/`, `/electric-new/`) is excluded. VDP URLs look like `/used/{Make}/{Year}-{Make}-{Model}-{id}.htm` and `/certified/LEXUS/...` (hybrids may use `/electric-certified/`).
+Completeness is the used-inventory total (`Browse our inventory of N` / make-facet sum), currently 110 across 24 makes. CPO units are a subset of that pre-owned lot. The HTML sitemap is **not** a complete inventory export (Lexus CPO/used only). New inventory (`/new-inventory/index.htm`, `/new/`, `/electric-new/`) is excluded. VDP URLs look like `/used/{Make}/{Year}-{Make}-{Model}-{id}.htm` and `/certified/LEXUS/...` (hybrids may use `/electric-certified/`).
+
+The scraper honors HTTP 429 `Retry-After` and exponential backoff. It paginates, dedupes by VIN/stock, and **will not overwrite** `packs.json` with a partial collection. A 429 from this environment is not proof that GitHub Actions will succeed.
 
 Local refresh:
 
@@ -61,7 +63,7 @@ npx playwright install --with-deps chromium
 node scripts/scrape-inventory.mjs
 ```
 
-The dealer site is behind Akamai bot detection. Datacenter IPs often get HTTP 429 on `/used-inventory` pagination and make-facet pages after a few requests; GitHub Actions (`Update inventory`) or a residential network usually gets the full used + L/Certified lot, including non-Lexus pre-owned. Do not point the scraper at the old Nissan/Hyundai sites.
+If the public listing is blocked, a dealer-provided inventory export/feed (CSV/JSON of current used + CPO) is required; do not point the scraper at the old Nissan/Hyundai sites.
 
 ## Package
 ```

@@ -1,24 +1,33 @@
 /**
  * Lot Linker Fill — weekly inventory scraper.
- * Pulls Lexus of Brookfield PRE-OWNED inventory (used + L/Certified) from the
- * official dealer.com site, then reads each VDP for equipment. Skips new
- * inventory and any vehicle without both a price and photos. Writes packs.json.
+ * Pulls ALL Lexus of Brookfield PRE-OWNED inventory (every make on used-inventory,
+ * plus L/Certified) from the public dealer.com pages. Honors HTTP 429 Retry-After.
+ * Refuses to overwrite packs.json with a silently partial collection.
  */
 import { chromium } from "playwright";
 import fs from "node:fs";
 import {
   DEALER,
-  MIN_PHOTOS,
   PREOWNED_SOURCES,
-  NEW_INVENTORY_PAGE,
+  collectionComplete,
   dedupeVehicles,
-  extractInventoryApiUrl,
+  extractMakeFacets,
+  extractNextListingUrls,
   extractTotalCount,
-  isListable,
   isNewVehicle,
+  isPreownedListing,
+  makeBreakdown,
+  makeFacetTotal,
+  prettyMake,
+  shouldWritePacks,
   toPack,
   vehiclesFromListingHtml,
 } from "./dealer-inventory.mjs";
+import { header, isRetryableHttp, retryDelayMs } from "./http-retry.mjs";
+
+const PAGE_SIZE = 24;
+const SUCCESS_GAP_MS = 8000;
+const MAX_RETRIES = 8;
 
 function vdpFeatureExtractor() {
   const out = new Set();
@@ -82,141 +91,139 @@ function buildKeyEquipment(sources, pack) {
   return picks.slice(0, 6);
 }
 
-async function fetchInventoryApi(page, apiPath) {
-  if (!apiPath) return [];
-  return page.evaluate(async (apiPath) => {
-    const all = [];
-    const pageSize = 24;
-    let start = 0;
-    for (let n = 0; n < 40; n++) {
-      const url = `${apiPath}${apiPath.includes("?") ? "&" : "?"}start=${start}&pageSize=${pageSize}`;
-      const r = await fetch(url, { credentials: "same-origin" });
-      if (!r.ok) break;
-      const j = await r.json();
-      const list = (j && (j.inventory || j.listings || j.vehicles)) || [];
-      const usable = list.filter((v) => v && !v.isPlaceholder);
-      if (!usable.length) break;
-      all.push(...usable);
-      const total = Number(j?.pageInfo?.totalCount) || 0;
-      start += pageSize;
-      if (all.length >= total && total > 0) break;
-      if (usable.length < pageSize) break;
+async function gotoWithRetry(page, url) {
+  let lastStatus = 0;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const resp = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
+    lastStatus = resp?.status?.() || 0;
+    const html = await page.content();
+    if (!isRetryableHttp(lastStatus, html) && html.length > 2000) {
+      return { resp, html, status: lastStatus };
     }
-    return all;
-  }, apiPath);
+    const delay = retryDelayMs(resp?.headers?.() || {}, attempt, { baseMs: 15000, capMs: 90000 });
+    const ra = header(resp?.headers?.() || {}, "retry-after") || "none";
+    console.log(`HTTP ${lastStatus} ${url} — wait ${delay}ms (Retry-After=${ra}, attempt ${attempt + 1}/${MAX_RETRIES + 1})`);
+    if (attempt === MAX_RETRIES) break;
+    await page.waitForTimeout(delay);
+  }
+  throw new Error(`blocked fetching ${url} (last HTTP ${lastStatus}) after Retry-After/backoff`);
 }
 
-async function pullNonLexusMakes(page, listingUrl) {
-  const extra = [];
-  let makes = [];
-  try {
-    makes = await page.$$eval('input[name="make"]', (inputs) =>
-      inputs.map((i) => i.value).filter((v) => v && !/^lexus$/i.test(v))
-    );
-  } catch {
-    makes = [];
-  }
-  for (const make of makes) {
-    try {
-      const url = `${listingUrl}${listingUrl.includes("?") ? "&" : "?"}make=${encodeURIComponent(make)}`;
-      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
-      await page.waitForTimeout(2500);
-      const html = await page.content();
-      if (html.length < 5000) continue;
-      extra.push(...vehiclesFromListingHtml(html));
-    } catch {
-      /* Akamai often 429s extra facet pages from datacenter IPs */
-    }
-  }
-  return extra;
+function listingUrl(base, { start, make, pageSize } = {}) {
+  const u = new URL(base);
+  if (start) u.searchParams.set("start", String(start));
+  else u.searchParams.delete("start");
+  if (make) u.searchParams.set("make", make);
+  if (pageSize) u.searchParams.set("pageSize", String(pageSize));
+  return u.toString();
 }
 
-async function pullSource(page, source) {
-  await page.goto(source.page, { waitUntil: "domcontentloaded", timeout: 60000 });
-  await page.waitForTimeout(2500);
-  let html = await page.content();
-  if (/too many requests|access denied|attention required|cloudflare/i.test(html) && html.length < 5000) {
-    throw new Error(`${source.name}: blocked fetching ${source.page}`);
+function haveForMake(breakdown, facet) {
+  const keys = [facet.make, facet.label, facet.value, prettyMake(facet.value), prettyMake(facet.make)];
+  for (const k of keys) {
+    if (k && breakdown[k]) return breakdown[k];
   }
+  return 0;
+}
 
-  const api = extractInventoryApiUrl(html);
-  let vehicles = [];
-  if (api) {
-    try {
-      vehicles = await fetchInventoryApi(page, api);
-    } catch {
-      vehicles = [];
+async function collectListingPage(page, url, label) {
+  const got = await gotoWithRetry(page, url);
+  await page.waitForTimeout(SUCCESS_GAP_MS);
+  const vehicles = vehiclesFromListingHtml(got.html);
+  console.log(`${label}: ${vehicles.length} on ${url}`);
+  return { html: got.html, vehicles };
+}
+
+async function pullPagedListing(page, source) {
+  const first = await collectListingPage(page, source.page, `${source.name} start=0`);
+  const expectedTotal = extractTotalCount(first.html) || 0;
+  const facets = extractMakeFacets(first.html);
+  const facetSum = makeFacetTotal(facets);
+  console.log(
+    `${source.name}: site total=${expectedTotal} makeFacets=${facets.length} facetSum=${facetSum} makes=${facets.map((f) => f.make + ":" + f.count).join(",")}`
+  );
+
+  let vehicles = dedupeVehicles(first.vehicles).filter(isPreownedListing);
+  const target = Math.max(expectedTotal, facetSum);
+
+  if (vehicles.length < target && facets.length) {
+    const missing = [...facets]
+      .filter((f) => !/^lexus$/i.test(f.value || f.make || ""))
+      .sort((a, b) => a.count - b.count);
+    for (const facet of missing) {
+      if (vehicles.length >= target) break;
+      const got = haveForMake(makeBreakdown(vehicles), facet);
+      if (got >= facet.count) continue;
+      const makeValue = facet.value || facet.make;
+      try {
+        const url = listingUrl(source.page, { make: makeValue });
+        const page1 = await collectListingPage(page, url, `${source.name} make=${makeValue}`);
+        vehicles = dedupeVehicles([...vehicles, ...page1.vehicles]).filter(isPreownedListing);
+        const still = haveForMake(makeBreakdown(vehicles), facet);
+        if (still < facet.count) {
+          for (let start = PAGE_SIZE; start < facet.count; start += PAGE_SIZE) {
+            const moreUrl = listingUrl(source.page, { make: makeValue, start });
+            const more = await collectListingPage(page, moreUrl, `${source.name} make=${makeValue} start=${start}`);
+            vehicles = dedupeVehicles([...vehicles, ...more.vehicles]).filter(isPreownedListing);
+          }
+        }
+        console.log(`${source.name}: make=${makeValue} unique=${vehicles.length}/${target}`);
+      } catch (e) {
+        console.log(`${source.name}: make=${makeValue} skipped: ${e.message || e}`);
+      }
     }
   }
-  if (!vehicles.length) vehicles = vehiclesFromListingHtml(html);
 
-  const total = extractTotalCount(html) || vehicles.length;
-  const pageSize = 24;
-  if (vehicles.length < total) {
-    for (let start = vehicles.length; start < total && start < 24 * 40; start += pageSize) {
-      const sep = source.page.includes("?") ? "&" : "?";
-      await page.goto(`${source.page}${sep}start=${start}`, { waitUntil: "domcontentloaded", timeout: 60000 });
-      await page.waitForTimeout(2500);
-      html = await page.content();
-      const more = vehiclesFromListingHtml(html);
-      if (!more.length) break;
-      vehicles.push(...more);
+  if (vehicles.length < target) {
+    const queued = new Set();
+    for (const href of extractNextListingUrls(first.html)) queued.add(href);
+    for (let start = PAGE_SIZE; start < target; start += PAGE_SIZE) {
+      queued.add(listingUrl(source.page, { start }));
     }
-  }
-
-  if (/used-inventory/i.test(source.page)) {
-    const extra = await pullNonLexusMakes(page, source.page);
-    if (extra.length) {
-      console.log(`${source.name}: extra non-Lexus from make filters=${extra.length}`);
-      vehicles.push(...extra);
+    for (const url of queued) {
+      if (vehicles.length >= target) break;
+      try {
+        const next = await collectListingPage(page, url, source.name);
+        if (!next.vehicles.length) continue;
+        vehicles = dedupeVehicles([...vehicles, ...next.vehicles]).filter(isPreownedListing);
+        console.log(`${source.name}: unique=${vehicles.length}/${target} after ${url}`);
+      } catch (e) {
+        console.log(`${source.name}: pagination stop ${url}: ${e.message || e}`);
+      }
     }
   }
 
   const newish = vehicles.filter(isNewVehicle).length;
-  console.log(
-    `${source.name}: pulled=${vehicles.length} listedTotal=${total} newSkipped=${newish} api=${api || "html"}`
-  );
-  return vehicles;
+  console.log(`${source.name}: pulled=${vehicles.length} expected=${target} newSkipped=${newish}`);
+  return { vehicles, expectedTotal: target, facets };
 }
 
 async function enrichFromVdps(ctx, packs) {
-  const CONCURRENCY = 4;
-  let idx = 0;
   let ok = 0;
-  async function worker() {
-    const page = await ctx.newPage();
-    while (idx < packs.length) {
-      const pk = packs[idx++];
-      let feats = [];
-      if (pk.vdpUrl) {
-        try {
-          await page.goto(pk.vdpUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
-          await page.waitForTimeout(700);
-          feats = await page.evaluate(vdpFeatureExtractor);
-          if (feats.length) ok++;
-        } catch {
-          /* keep listing features as the source */
+  const page = await ctx.newPage();
+  try {
+    for (let i = 0; i < packs.length; i++) {
+      const pk = packs[i];
+      if (!pk.vdpUrl) continue;
+      try {
+        const { html } = await gotoWithRetry(page, pk.vdpUrl);
+        await page.waitForTimeout(400);
+        const feats = await page.evaluate(vdpFeatureExtractor);
+        pk.keyEquipment = buildKeyEquipment([...(feats || []), ...(pk.features || [])], pk);
+        if (feats.length) {
+          pk.features = [...(pk.features || []), ...feats];
+          ok += 1;
         }
+      } catch (e) {
+        console.log(`VDP enrich stop at ${i + 1}/${packs.length}: ${e.message || e}`);
+        pk.keyEquipment = buildKeyEquipment(pk.features || [], pk);
+        break;
       }
-      pk.keyEquipment = buildKeyEquipment([...(feats || []), ...(pk.features || [])], pk);
-      if (feats.length) pk.features = [...(pk.features || []), ...feats];
     }
+  } finally {
     await page.close();
   }
-  await Promise.all(Array.from({ length: CONCURRENCY }, worker));
   console.log(`VDP equipment read for ${ok}/${packs.length} vehicles`);
-}
-
-async function assertNotScrapingNew(page) {
-  try {
-    await page.goto(NEW_INVENTORY_PAGE, { waitUntil: "domcontentloaded", timeout: 30000 });
-    await page.waitForTimeout(800);
-    const html = await page.content();
-    const newCount = extractTotalCount(html);
-    if (newCount) console.log(`new-inventory page reports ${newCount} units (excluded from packs.json)`);
-  } catch {
-    console.log("new-inventory page not fetched (exclusion still enforced by type/URL filters)");
-  }
 }
 
 async function main() {
@@ -229,27 +236,53 @@ async function main() {
 
   const pulled = [];
   const errors = [];
+  const sourcesUsed = [];
+  let expectedUsed = 0;
+  let usedFacets = [];
+
   for (const source of PREOWNED_SOURCES) {
+    if (source.name === "cpo" && collectionComplete({ expectedTotal: expectedUsed, uniqueCount: dedupeVehicles(pulled).length })) {
+      console.log("skipping CPO listing; used-inventory already complete (CPO is a subset)");
+      continue;
+    }
     try {
-      pulled.push(...(await pullSource(page, source)));
+      const got = await pullPagedListing(page, source);
+      pulled.push(...got.vehicles);
+      sourcesUsed.push(source.page);
+      if (source.name === "used") {
+        expectedUsed = got.expectedTotal;
+        usedFacets = got.facets;
+      }
     } catch (e) {
       errors.push(`${source.name}: ${e.message || e}`);
       console.error(e);
     }
   }
 
-  await assertNotScrapingNew(page);
   await page.close();
 
-  const vehicles = dedupeVehicles(pulled).filter((v) => isListable(v, { minPhotos: MIN_PHOTOS }));
-  console.log(`preowned+price+photos=${vehicles.length} (from ${pulled.length} pulled)`);
-  if (!vehicles.length) {
+  const vehicles = dedupeVehicles(pulled).filter(isPreownedListing);
+  const unique = vehicles.length;
+  const complete = collectionComplete({ expectedTotal: expectedUsed, uniqueCount: unique });
+  const pulledMakes = makeBreakdown(vehicles);
+  console.log(`unique preowned=${unique} expectedUsed=${expectedUsed} complete=${complete}`);
+  console.log("make breakdown", JSON.stringify(pulledMakes));
+
+  let previous = { packs: [] };
+  try {
+    previous = JSON.parse(fs.readFileSync("packs.json", "utf8"));
+  } catch {}
+  const previousCount = Array.isArray(previous.packs) ? previous.packs.length : 0;
+  const gate = shouldWritePacks({ complete, previousCount, newCount: unique });
+  if (!gate.write) {
     await browser.close();
-    throw new Error(
-      `No Lexus of Brookfield pre-owned vehicles — aborting so we don't publish an empty or old-dealer file.${
-        errors.length ? " " + errors.join("; ") : ""
-      }`
+    const missing = usedFacets
+      .map((f) => ({ make: f.make, expected: f.count, got: pulledMakes[f.make] || 0 }))
+      .filter((r) => r.got < r.expected);
+    console.error(
+      `NOT writing packs.json (${gate.reason}). unique=${unique} expected=${expectedUsed}. missingMakes=${JSON.stringify(missing)}. errors=${errors.join("; ") || "none"}`
     );
+    process.exit(2);
   }
 
   const packs = vehicles.map(toPack);
@@ -262,19 +295,13 @@ async function main() {
     throw new Error("New inventory leaked into packs — aborting");
   }
 
-  await enrichFromVdps(ctx, packs);
+  for (const pk of packs) {
+    pk.keyEquipment = buildKeyEquipment(pk.features || [], pk);
+  }
   await browser.close();
 
-  if (packs.length < 10) {
-    throw new Error(`Only ${packs.length} pre-owned vehicles — suspiciously low, aborting`);
-  }
-
-  let previous = [];
-  try {
-    previous = JSON.parse(fs.readFileSync("packs.json", "utf8")).packs || [];
-  } catch {}
   const nowStocks = new Set(packs.map((p) => p.stock));
-  const sold = previous
+  const sold = (previous.packs || [])
     .filter((p) => p.condition !== "NEW" && !nowStocks.has(p.stock))
     .filter((p) => /lexus of brookfield|lexusofbrookfield/i.test([p.rooftop, p.vdpUrl].join(" ")))
     .map((p) => ({
@@ -287,17 +314,22 @@ async function main() {
 
   const out = {
     generatedAt: new Date().toISOString(),
-    source: "lexusofbrookfield.com dealer.com used + L/Certified (PRE-OWNED only, price+photos)",
+    source: sourcesUsed.join(" + ") + " (PRE-OWNED, all makes)",
     dealer: DEALER.name,
     site: DEALER.site,
+    complete: true,
+    expectedTotal: expectedUsed,
     count: packs.length,
+    makes: pulledMakes,
+    makeFacets: usedFacets,
+    sources: sourcesUsed,
     soldSinceLast: sold.length,
     sold,
     packs,
   };
   fs.writeFileSync("packs.json", JSON.stringify(out));
   console.log(
-    `Wrote packs.json — ${packs.length} pre-owned, ${sold.length} sold since last run, ${(
+    `Wrote packs.json — ${packs.length} pre-owned (complete vs ${expectedUsed}), ${sold.length} sold since last run, ${(
       fs.statSync("packs.json").size / 1024 / 1024
     ).toFixed(2)} MB`
   );
