@@ -1,5 +1,5 @@
 /**
- * Lot Linker Fill — resolve VDP / pack photo URLs, strip Boucher red banner.
+ * Lot Linker Fill — resolve VDP / pack photo URLs, strip a dealer red banner if present.
  * Works in the extension (service worker / content script / popup) and in Node tests.
  */
 (function (root, factory) {
@@ -139,6 +139,7 @@
         if (redish / w > 0.1) cut = y;
         else if (cut < h) break;
       }
+      if (cut === h) return blob;
       if (cut > fallbackCut) cut = fallbackCut;
       if (cut < Math.floor(h * 0.7)) cut = fallbackCut;
 

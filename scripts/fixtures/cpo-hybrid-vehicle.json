@@ -1,0 +1,194 @@
+{
+  "uuid": "5bd0e316ac180446b41425b6fa5e7748",
+  "vin": "2T2HKCEZ2PC015746",
+  "stockNumber": "PJP3194",
+  "year": 2023,
+  "make": "LEXUS",
+  "model": "NX",
+  "trim": "350h Luxury",
+  "bodyStyle": "SUV",
+  "type": "used",
+  "condition": "Certified Pre-Owned",
+  "certified": true,
+  "link": "/electric-certified/LEXUS/2023-LEXUS-NX-5bd0e316ac180446b41425b6fa5e7748.htm",
+  "title": [
+    "2023 LEXUS NX 350h Luxury"
+  ],
+  "fuelType": "Hybrid",
+  "pricing": {
+    "retailPrice": "$48,198",
+    "dprice": [
+      {
+        "label": "Price",
+        "type": "MIDDLE",
+        "typeClass": "askingPrice",
+        "value": "$48,198"
+      },
+      {
+        "label": "Service Fee",
+        "type": "MIDDLE",
+        "typeClass": "documentFee",
+        "value": "$479"
+      },
+      {
+        "label": "ECT Filing Fee",
+        "type": "MIDDLE",
+        "typeClass": "deliveryFee",
+        "value": "$38"
+      },
+      {
+        "label": "Total Sale Price",
+        "type": "TOTAL",
+        "typeClass": "internetPrice",
+        "value": "$48,715",
+        "isFinalPrice": true
+      }
+    ],
+    "vehicle": {
+      "category": "AUTO"
+    },
+    "ePriceStatus": "NON_APPLICABLE"
+  },
+  "images": [
+    {
+      "alt": "2023 LEXUS NX 350h Luxury SUV",
+      "id": "0",
+      "title": "2023 LEXUS NX 350h Luxury SUV",
+      "uri": "https://pictures.dealer.com/l/lexusofbrookfieldwi/0617/ad0abda32e142d5bed1d80186532bdd2x.jpg",
+      "provider": "ACTUAL_PHOTO"
+    },
+    {
+      "alt": "2023 LEXUS NX 350h Luxury SUV",
+      "id": "1",
+      "title": "2023 LEXUS NX 350h Luxury SUV",
+      "uri": "https://pictures.dealer.com/l/lexusofbrookfieldwi/0763/b86372c7143e95e54c1af43402998ffdx.jpg",
+      "provider": "ACTUAL_PHOTO"
+    },
+    {
+      "alt": "2023 LEXUS NX 350h Luxury SUV",
+      "id": "2",
+      "title": "2023 LEXUS NX 350h Luxury SUV",
+      "uri": "https://pictures.dealer.com/l/lexusofbrookfieldwi/1069/93a993986eb1971c0f310d12c7234d6fx.jpg",
+      "provider": "ACTUAL_PHOTO"
+    },
+    {
+      "alt": "2023 LEXUS NX 350h Luxury SUV",
+      "id": "3",
+      "title": "2023 LEXUS NX 350h Luxury SUV",
+      "uri": "https://pictures.dealer.com/l/lexusofbrookfieldwi/0336/11a4a34e799f3d2dad3999d62bbed089x.jpg",
+      "provider": "ACTUAL_PHOTO"
+    },
+    {
+      "alt": "2023 LEXUS NX 350h Luxury SUV",
+      "id": "4",
+      "title": "2023 LEXUS NX 350h Luxury SUV",
+      "uri": "https://pictures.dealer.com/l/lexusofbrookfieldwi/1809/3c5637f37c7c4a2340684274688c13a9x.jpg",
+      "provider": "ACTUAL_PHOTO"
+    },
+    {
+      "alt": "2023 LEXUS NX 350h Luxury SUV",
+      "id": "5",
+      "title": "2023 LEXUS NX 350h Luxury SUV",
+      "uri": "https://pictures.dealer.com/l/lexusofbrookfieldwi/0059/654b71c0e0440bdf30d9c4719e4edd1cx.jpg",
+      "provider": "ACTUAL_PHOTO"
+    }
+  ],
+  "attributes": [
+    {
+      "name": "engine",
+      "label": "Engine",
+      "value": "2.5L I-4 cyl",
+      "labeledValue": "2.5L I-4 cyl Engine"
+    },
+    {
+      "name": "transmission",
+      "label": "Transmission",
+      "value": "1-Speed CVT w/OD",
+      "labeledValue": "1-Speed CVT w/OD "
+    },
+    {
+      "name": "exteriorColor",
+      "label": "Exterior Color",
+      "value": "Caviar",
+      "normalizedValue": "Black",
+      "labeledValue": "Caviar Exterior"
+    },
+    {
+      "name": "interiorColor",
+      "label": "Interior Color",
+      "value": "DK.Rose",
+      "normalizedValue": "Red",
+      "labeledValue": "DK.Rose Interior"
+    },
+    {
+      "name": "stockNumber",
+      "label": "Stock Number",
+      "value": "PJP3194",
+      "labeledValue": "Stock # PJP3194 "
+    },
+    {
+      "name": "modelCode",
+      "label": "Model Code",
+      "value": "9846",
+      "labeledValue": "Model Code: 9846 "
+    }
+  ],
+  "trackingAttributes": [
+    {
+      "name": "engineSize",
+      "value": "2.5L"
+    },
+    {
+      "name": "autodataCaId",
+      "value": "CAD30LES261A0"
+    },
+    {
+      "name": "fuelType",
+      "value": "HEV (hybrid electric vehicle)"
+    },
+    {
+      "name": "odometer",
+      "value": "25263"
+    },
+    {
+      "name": "engine",
+      "value": "I-4 cyl"
+    },
+    {
+      "name": "normalFuelType",
+      "value": "Hybrid"
+    },
+    {
+      "name": "transmission",
+      "value": "1-Speed CVT w/OD"
+    },
+    {
+      "name": "exteriorColor",
+      "value": "Caviar",
+      "normalizedValue": "Black"
+    },
+    {
+      "name": "doors",
+      "value": "4 door"
+    },
+    {
+      "name": "driveLine",
+      "value": "All-Wheel Drive"
+    },
+    {
+      "name": "interiorColor",
+      "value": "DK.Rose",
+      "normalizedValue": "Red"
+    }
+  ],
+  "trackingPricing": {
+    "internetPrice": "$48,715",
+    "salePrice": "48198",
+    "retailValue": "56490",
+    "msrp": "56490",
+    "askingPrice": "$48,198"
+  },
+  "classification": "primary",
+  "status": "live",
+  "accountId": "lexusofbrookfieldwi"
+}

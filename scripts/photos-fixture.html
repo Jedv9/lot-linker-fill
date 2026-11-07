@@ -88,7 +88,7 @@
         condition: "USED",
         drivetrain: "4WD",
         price: "26900",
-        rooftop: "Lake Country Nissan",
+        rooftop: "Lexus of Brookfield",
         photoUrls: [urlA, urlB],
         body: "USED 2012 Ford F-150 SVT Raptor · 4WD. Standouts: Heated Seats · Backup Camera · 4WD.",
       };
@@ -115,7 +115,7 @@
         missed: result.missed,
         photoCount: input.files.length,
         photosOk: input.files.length === 2 && result.filled.includes("photos"),
-        modelOk: model === "F-150 SVT Raptor | 4WD | $26,900 | Oconomowoc WI",
+        modelOk: model === "F-150 SVT Raptor | 4WD | $26,900 | Brookfield WI",
         descOk: desc.includes("Wisconsin shoppers") && /\n/.test(desc),
         yearOk: year === "2012" && result.filled.includes("year"),
         makeOk: make === "Ford" && result.filled.includes("make"),

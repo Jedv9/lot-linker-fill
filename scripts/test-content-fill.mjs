@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import { toPack } from "./dealer-inventory.mjs";
 
 const require = createRequire(import.meta.url);
 const listing = require("../listing-copy.js");
-const packs = JSON.parse(readFileSync(new URL("../packs.json", import.meta.url), "utf8")).packs;
+const cpo = JSON.parse(readFileSync(new URL("./fixtures/cpo-vehicle.json", import.meta.url), "utf8"));
 const content = readFileSync(new URL("../content-fb.js", import.meta.url), "utf8");
 const popup = readFileSync(new URL("../popup.js", import.meta.url), "utf8");
 const popupHtml = readFileSync(new URL("../popup.html", import.meta.url), "utf8");
@@ -12,12 +13,14 @@ const manifest = JSON.parse(readFileSync(new URL("../manifest.json", import.meta
 const background = readFileSync(new URL("../background.js", import.meta.url), "utf8");
 const zipBuild = readFileSync(new URL("./build-zip.sh", import.meta.url), "utf8");
 
-assert.equal(manifest.version, "2.2.4");
+assert.equal(manifest.version, "2.3.0");
 assert.deepEqual(manifest.content_scripts[0].js, ["listing-copy.js", "photos.js", "content-fb.js"]);
 assert.equal(manifest.background.service_worker, "background.js");
 assert.ok(manifest.permissions.includes("downloads"), "fallback save uses chrome.downloads");
-assert.ok(manifest.host_permissions.some((h) => /vehicle-images\.carscommerce\.inc/.test(h)));
+assert.ok(manifest.host_permissions.some((h) => /lexusofbrookfield\.com/.test(h)));
+assert.ok(manifest.host_permissions.some((h) => /pictures\.dealer\.com/.test(h)));
 assert.ok(manifest.host_permissions.some((h) => /facebook\.com/.test(h)));
+assert.ok(!manifest.host_permissions.some((h) => /nissanlakecountry|hyundailakecountry|boucher\.com/.test(h)));
 assert.match(background, /LOT_LINKER_PREPARE_PHOTOS/);
 assert.doesNotMatch(background, /chrome\.downloads/);
 assert.match(zipBuild, /lot-linker-fill/);
@@ -69,24 +72,38 @@ assert.match(content, /NEVER_CLICK_RE/);
 assert.match(content, /LOT_LINKER_PREPARE_PHOTOS/);
 assert.match(popup, /descriptionHit/);
 assert.match(popup, /res\.photos/);
+assert.match(popup, /currentDealerPacks/);
 
 assert.doesNotMatch(popup, /downloadPhotos|copyTitle|copyBody|importPaste/);
 assert.doesNotMatch(popupHtml, /Download photos|Copy title|Import ALL-EASY-PASTE/);
 assert.match(popupHtml, />Fill</);
 assert.match(popupHtml, /Save photos \(fallback\)/);
 assert.match(popupHtml, /id="mPick"/);
+assert.match(popupHtml, /Lexus of Brookfield pre-owned/);
 assert.match(popup, /LOT_LINKER_FILL/);
 assert.match(popup, /res\.missed/);
 assert.match(popup, /pickerLabel|packPickerLabel/);
 assert.match(popup, /savePhotos/);
 assert.doesNotMatch(popup, /storeShort/);
 
-const nissan = listing.fromPack(packs.find((p) => p.stock === "26NU0143"));
-assert.ok(nissan.body.includes("\n\n"), "description must keep blank lines");
-assert.equal(nissan.body.split("\n\n").length >= 5, true);
-assert.equal(nissan.modelLine, "Altima 2.5 SR | AWD | $30,470 | Oconomowoc WI");
+const cpoListing = listing.fromPack(toPack(cpo));
+assert.ok(cpoListing.body.includes("\n\n"), "description must keep blank lines");
+assert.equal(cpoListing.body.split("\n\n").length >= 5, true);
+assert.equal(cpoListing.modelLine, "NX 350 Premium | AWD | $43,999 | Brookfield WI");
 
-const raptor = listing.packToListing(packs.find((p) => p.stock === "PU1392"));
-assert.equal(raptor.modelLine, "F-150 SVT Raptor | 4WD | $26,900 | Oconomowoc WI");
+const raptor = listing.packToListing({
+  stock: "PU1392",
+  year: "2012",
+  make: "Ford",
+  model: "F-150",
+  trim: "SVT Raptor",
+  bodyStyle: "Crew Cab 4D",
+  mileage: "87000",
+  condition: "USED",
+  drivetrain: "4WD",
+  price: "26900",
+  rooftop: "Lexus of Brookfield",
+});
+assert.equal(raptor.modelLine, "F-150 SVT Raptor | 4WD | $26,900 | Brookfield WI");
 
 console.log("content/popup/manifest checks ok");

@@ -1,17 +1,12 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import { toPack } from "./dealer-inventory.mjs";
 
 const require = createRequire(import.meta.url);
 const listing = require("../listing-copy.js");
-const packs = JSON.parse(readFileSync(new URL("../packs.json", import.meta.url), "utf8")).packs;
+const cpo = JSON.parse(readFileSync(new URL("./fixtures/cpo-vehicle.json", import.meta.url), "utf8"));
 const vdpFixture = readFileSync(new URL("./vdp-feature-fixture.html", import.meta.url), "utf8");
-
-function pack(stock) {
-  const p = packs.find((x) => x.stock === stock);
-  assert.ok(p, `missing pack ${stock}`);
-  return p;
-}
 
 function bullets(body) {
   return body.split("\n").filter((l) => l.startsWith("• ")).map((l) => l.slice(2));
@@ -21,7 +16,7 @@ function assertLayout(body) {
   const lines = body.split("\n");
   assert.match(lines[0], /^Wisconsin shoppers looking for a \S+ under \$[\d,]+:$/);
   assert.equal(lines[1], "");
-  assert.match(lines[2], / is available at Boucher Lake Country (Nissan|Hyundai) in Oconomowoc, Wisconsin\.$/);
+  assert.match(lines[2], / is available at Lexus of Brookfield in Brookfield, Wisconsin\.$/);
   assert.equal(lines[3], "");
   assert.match(lines[4], /^Price: \$[\d,]+$/);
   assert.match(lines[5], /^Mileage: /);
@@ -46,7 +41,27 @@ function assertLayout(body) {
   );
 }
 
-const raptorPack = pack("PU1392");
+const raptorPack = {
+  stock: "PU1392",
+  year: "2012",
+  make: "Ford",
+  model: "F-150",
+  trim: "SVT Raptor",
+  bodyStyle: "Crew Cab 4D",
+  mileage: "109782",
+  odometerMiles: 109782,
+  vin: "1FTWX1R64CFA00000",
+  condition: "USED",
+  exterior: "Black",
+  interior: "Black",
+  fuel: "Gasoline",
+  drivetrain: "4WD",
+  price: "26900",
+  rooftop: "Lexus of Brookfield",
+  vdpUrl: "https://www.lexusofbrookfield.com/used/Ford/2012-Ford-F-150.htm",
+  features: ["Heated Seats", "Backup Camera", "4WD"],
+};
+
 assert.equal(
   listing.pickerLabel(raptorPack),
   "PU1392 · 2012 Ford F-150 SVT Raptor · 109,782 mi · $26,900"
@@ -54,60 +69,89 @@ assert.equal(
 assert.equal(listing.mileageLabel(raptorPack), "109,782 mi");
 assert.equal(
   listing.buildModelLine(raptorPack),
-  "F-150 SVT Raptor | 4WD | $26,900 | Oconomowoc WI"
+  "F-150 SVT Raptor | 4WD | $26,900 | Brookfield WI"
 );
 assert.doesNotMatch(listing.buildModelLine(raptorPack), /2012|Ford/);
 assert.equal(
   listing.buildTitle(raptorPack),
-  "2012 Ford F-150 SVT Raptor | 4WD | $26,900 | Oconomowoc WI"
+  "2012 Ford F-150 SVT Raptor | 4WD | $26,900 | Brookfield WI"
 );
 const raptorListing = listing.packToListing(raptorPack);
-assert.equal(raptorListing.modelLine, "F-150 SVT Raptor | 4WD | $26,900 | Oconomowoc WI");
+assert.equal(raptorListing.modelLine, "F-150 SVT Raptor | 4WD | $26,900 | Brookfield WI");
 assert.match(raptorListing.body, /Wisconsin shoppers looking for a truck under \$26,900:/);
-assert.match(raptorListing.body, /2012 Ford F-150 is available at Boucher Lake Country Nissan/);
+assert.match(raptorListing.body, /2012 Ford F-150 is available at Lexus of Brookfield/);
+assert.doesNotMatch(raptorListing.body, /Boucher|Lake Country|Oconomowoc/);
 assert.ok(raptorListing.body.includes("\n\n"), "description must keep blank lines");
 assertLayout(raptorListing.body);
 
-const nissan = listing.fromPack(pack("26NU0143"));
+const cpoPack = toPack(cpo);
+cpoPack.features = [
+  "Heated & Ventilated Seats",
+  "Wireless Apple CarPlay/Wireless Android Auto",
+  "Intuitive Parking Assist",
+  "Power driver seat",
+  "Power moonroof",
+];
+const cpoListing = listing.fromPack(cpoPack);
 assert.equal(
-  listing.pickerLabel(pack("26NU0143")),
-  "26NU0143 · 2026 Nissan Altima 2.5 SR · NEW · $30,470"
+  listing.pickerLabel(cpoPack),
+  "PMT3253 · 2024 Lexus NX 350 Premium · 17,009 mi · $43,999"
 );
-assert.equal(listing.mileageLabel(pack("26NU0143")), "NEW");
-assert.equal(nissan.modelLine, "Altima 2.5 SR | AWD | $30,470 | Oconomowoc WI");
-assert.doesNotMatch(nissan.modelLine, /2026|Nissan/);
-assert.equal(nissan.title, "2026 Nissan Altima 2.5 SR | AWD | $30,470 | Oconomowoc WI");
-assert.deepEqual(bullets(nissan.body), [
-  "Apple CarPlay / Android Auto",
-  "Blind Spot Monitor",
-  "Power Seats",
-  "AWD",
-  "Leatherette Seats",
-]);
-assert.doesNotMatch(nissan.body, /Bluetooth|Satellite Radio|Gasoline|Automatic transmission|Moonroof/i);
-assertLayout(nissan.body);
+assert.doesNotMatch(listing.mileageLabel(cpoPack), /NEW/);
+assert.equal(cpoListing.modelLine, "NX 350 Premium | AWD | $43,999 | Brookfield WI");
+assert.doesNotMatch(cpoListing.modelLine, /2024|Lexus/);
+assert.equal(cpoListing.title, "2024 Lexus NX 350 Premium | AWD | $43,999 | Brookfield WI");
+assert.match(cpoListing.body, /L\/Certified Pre-Owned/);
+assert.match(cpoListing.body, /Lexus of Brookfield in Brookfield, Wisconsin/);
+assert.ok(listing.keyEquipment(cpoPack).length >= 3);
+assert.doesNotMatch(cpoListing.body, /Bluetooth|Satellite Radio|Gasoline|Automatic transmission/i);
+assertLayout(cpoListing.body);
 
-const hyundai = listing.fromPack(pack("25HY024"));
-assert.equal(hyundai.modelLine, "Elantra Hybrid Limited | FWD | $29,695 | Oconomowoc WI");
-assert.equal(hyundai.title, "2025 Hyundai Elantra Hybrid Limited | FWD | $29,695 | Oconomowoc WI");
-assert.deepEqual(bullets(hyundai.body), [
-  "Heated Front Seats",
-  "Apple CarPlay / Android Auto",
-  "Blind Spot Monitor",
-  "Power Seats",
-  "Moonroof / Panoramic Roof",
-]);
-assert.doesNotMatch(hyundai.body, /Bluetooth|Gasoline|Automatic transmission|\bFWD\b/);
-assertLayout(hyundai.body);
+const usedMulti = listing.fromPack({
+  stock: "28159A",
+  year: "2024",
+  make: "Genesis",
+  model: "GV80",
+  trim: "3.5T",
+  bodyStyle: "SUV",
+  mileage: "20520",
+  condition: "USED",
+  certified: false,
+  drivetrain: "AWD",
+  price: "45507",
+  rooftop: "Lexus of Brookfield",
+  vdpUrl: "https://www.lexusofbrookfield.com/used/Genesis/2024-Genesis-GV80-82754bd9ac180097404c2aaa144db3e4.htm",
+  features: ["Heated & Ventilated Front Bucket Seats", "Apple CarPlay", "Android Auto", "Surround View Monitor", "Leather Seats"],
+});
+assert.equal(usedMulti.modelLine, "GV80 3.5T | AWD | $45,507 | Brookfield WI");
+assert.doesNotMatch(usedMulti.body, /L\/Certified Pre-Owned/);
+assert.match(usedMulti.body, /2024 Genesis GV80 is available at Lexus of Brookfield/);
+assertLayout(usedMulti.body);
 
-const f150 = listing.fromPack(pack("PU1388"));
-assert.deepEqual(listing.keyEquipment(pack("PU1388")), [
+const thin = listing.fromPack({
+  stock: "PU1388",
+  year: "2018",
+  make: "Ford",
+  model: "F-150",
+  trim: "XLT",
+  bodyStyle: "Crew Cab 4D",
+  mileage: "87000",
+  condition: "USED",
+  drivetrain: "4WD",
+  price: "26900",
+  rooftop: "Lexus of Brookfield",
+  features: ["Heated Seats", "Backup Camera"],
+});
+assert.deepEqual(listing.keyEquipment({
+  features: ["Heated Seats", "Backup Camera"],
+  drivetrain: "4WD",
+}), [
   "Heated Seats",
   "Backup Camera",
   "4WD",
 ]);
-assert.ok(listing.needsResearch(pack("PU1388")));
-assertLayout(f150.body);
+assert.ok(listing.needsResearch({ features: ["Heated Seats", "Backup Camera"], drivetrain: "4WD", vdpUrl: "https://www.lexusofbrookfield.com/used/x.htm" }));
+assertLayout(thin.body);
 
 const junkOnly = listing.keyEquipment({
   body: "Standouts: Gasoline engine · Brake lights · Headlights · Seat belts · Airbags · AM/FM radio · Power windows · Automatic transmission · ABS · FWD · Torsen · Fox shocks · 3.73 axle ratio. Also: Bluetooth, Satellite Radio Ready.",
@@ -128,27 +172,33 @@ assert.ok(extracted.some((f) => /remote start/i.test(f)));
 assert.ok(extracted.some((f) => /power seats/i.test(f)));
 assert.ok(!extracted.some((f) => /gasoline|bluetooth|abs|torsen/i.test(f)));
 
-const researched = await listing.researchPack(pack("PU1388"), {
-  timeoutMs: 2000,
-  fetchFn: async (url) => {
-    if (/nhtsa/i.test(String(url))) {
-      return { ok: true, json: async () => ({ Results: [{ DriveType: "4WD/4-Wheel Drive/4x4" }] }) };
-    }
-    return { ok: true, text: async () => vdpFixture };
-  },
-});
+const researched = await listing.researchPack(
+  { features: ["Heated Seats", "Backup Camera"], drivetrain: "4WD", vdpUrl: "https://www.lexusofbrookfield.com/used/x.htm", vin: "1FTWX1R64CFA00000" },
+  {
+    timeoutMs: 2000,
+    fetchFn: async (url) => {
+      if (/nhtsa/i.test(String(url))) {
+        return { ok: true, json: async () => ({ Results: [{ DriveType: "4WD/4-Wheel Drive/4x4" }] }) };
+      }
+      return { ok: true, text: async () => vdpFixture };
+    },
+  }
+);
 const after = listing.keyEquipment(researched);
 assert.ok(after.length <= 5);
 assert.ok(after.includes("Heated Seats"));
 assert.ok(after.includes("Apple CarPlay / Android Auto") || after.includes("Apple CarPlay"));
 assert.ok(after.includes("Power Seats"));
-assert.ok(after.length > listing.keyEquipment(pack("PU1388")).length, "research should add buyer features pack missed");
+assert.ok(after.length > 3, "research should add buyer features pack missed");
 
-const timedOut = await listing.researchPack(pack("PU1388"), {
-  timeoutMs: 30,
-  fetchFn: () => new Promise(() => {}),
-});
-assert.deepEqual(listing.keyEquipment(timedOut), listing.keyEquipment(pack("PU1388")));
+const timedOut = await listing.researchPack(
+  { features: ["Heated Seats", "Backup Camera"], drivetrain: "4WD", vdpUrl: "https://www.lexusofbrookfield.com/used/x.htm" },
+  {
+    timeoutMs: 30,
+    fetchFn: () => new Promise(() => {}),
+  }
+);
+assert.deepEqual(listing.keyEquipment(timedOut), ["Heated Seats", "Backup Camera", "4WD"]);
 
 assert.equal(listing.driveFromNhtsa({ Results: [{ DriveType: "FWD/Front-Wheel Drive" }] }), "");
 assert.equal(listing.driveFromNhtsa({ Results: [{ DriveType: "AWD/All-Wheel Drive" }] }), "AWD");
@@ -156,9 +206,13 @@ assert.equal(listing.driveFromNhtsa({ Results: [{ DriveType: "AWD/All-Wheel Driv
 assert.equal(listing.vehicleType({ bodyStyle: "Crew Cab 4D", model: "Santa Cruz" }), "truck");
 assert.equal(listing.vehicleType({ bodyStyle: "Hatchback 4D", model: "Soul" }), "hatchback");
 assert.equal(listing.vehicleType({ bodyStyle: "Passenger Van 4D", model: "Pacifica" }), "van");
+assert.equal(listing.vehicleType({ bodyStyle: "SUV", model: "NX" }), "SUV");
+assert.equal(listing.vehicleType({ bodyStyle: "Sedan", model: "ES" }), "sedan");
 
-console.log("NISSAN 26NU0143 KEY EQUIPMENT\n" + bullets(nissan.body).map((b) => `• ${b}`).join("\n") + "\n");
-console.log("HYUNDAI 25HY024 KEY EQUIPMENT\n" + bullets(hyundai.body).map((b) => `• ${b}`).join("\n") + "\n");
-console.log("F150 PU1388 PACK ONLY\n" + listing.keyEquipment(pack("PU1388")).map((b) => `• ${b}`).join("\n") + "\n");
-console.log("F150 PU1388 AFTER RESEARCH\n" + after.map((b) => `• ${b}`).join("\n") + "\n");
+assert.equal(listing.storeName({ make: "Hyundai" }), "Lexus of Brookfield");
+assert.equal(listing.isCertified(cpoPack), true);
+assert.equal(listing.isCertified({ condition: "USED" }), false);
+
+console.log("CPO PMT3253 KEY EQUIPMENT\n" + bullets(cpoListing.body).map((b) => `• ${b}`).join("\n") + "\n");
+console.log("GENESIS 28159A KEY EQUIPMENT\n" + bullets(usedMulti.body).map((b) => `• ${b}`).join("\n") + "\n");
 console.log("ok");

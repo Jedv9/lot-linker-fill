@@ -1240,7 +1240,7 @@ async function fillPackOnce(pack) {
     await fillChoiceAny([/^body style$/, /\bbody style\b/, /^body$/], bodyVals, [...specExclude, /\bexterior\b/, /\binterior\b/, /\bfuel\b/])
   );
 
-  const extVals = colorCandidates(p.exterior);
+  const extVals = colorCandidates(p.exterior).length ? colorCandidates(p.exterior) : colorCandidates(p.exteriorFb);
   markIfPresent(
     mark,
     "exterior",
@@ -1252,7 +1252,7 @@ async function fillPackOnce(pack) {
     )
   );
 
-  const intVals = colorCandidates(p.interior);
+  const intVals = colorCandidates(p.interior).length ? colorCandidates(p.interior) : colorCandidates(p.interiorFb);
   markIfPresent(
     mark,
     "interior",

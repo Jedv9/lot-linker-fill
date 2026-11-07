@@ -32,15 +32,24 @@ function uniqueSorted(vals) {
   );
 }
 
+function currentDealerPacks(list) {
+  const rows = Array.isArray(list) ? list : [];
+  if (typeof LotLinkerListing !== "undefined" && LotLinkerListing.isCurrentDealerPack) {
+    return rows.filter((p) => LotLinkerListing.isCurrentDealerPack(p));
+  }
+  return rows.filter((p) => /lexus of brookfield|lexusofbrookfield/i.test([p?.rooftop, p?.vdpUrl].join(" ")));
+}
+
 async function loadBundled() {
   const res = await fetch(chrome.runtime.getURL("packs.json"));
   const data = await res.json();
-  const bundled = data.packs || [];
+  const bundled = currentDealerPacks(data.packs || []);
   const stored = await chrome.storage.local.get(["packsOverride", "packsRefreshedAt"]);
-  packs = stored.packsOverride?.length ? stored.packsOverride : bundled;
+  const override = currentDealerPacks(stored.packsOverride);
+  packs = override.length ? override : bundled;
   fillStoreFilter();
   renderList();
-  showRefreshMeta(stored.packsRefreshedAt);
+  showRefreshMeta(override.length ? stored.packsRefreshedAt : "");
 }
 
 function fillStoreFilter() {
@@ -203,9 +212,9 @@ $("refreshInventory").onclick = async () => {
       return;
     }
     const data = await res.json();
-    const remote = Array.isArray(data) ? data : (data.packs || []);
+    const remote = currentDealerPacks(Array.isArray(data) ? data : (data.packs || []));
     if (!remote.length) {
-      status("Refresh failed: no packs in remote JSON");
+      status("Refresh failed: no Lexus of Brookfield pre-owned packs in remote JSON");
       return;
     }
     packs = remote;

@@ -1,92 +1,49 @@
 /**
  * Lot Linker Fill — weekly inventory scraper.
- * Pulls the Boucher Lake Country Hyundai + Nissan rooftops from the Cars Commerce
- * listings API, then reads each vehicle's detail page (VDP) for its real, trim-
- * specific equipment and writes a premium-first `keyEquipment` list. Skips any
- * vehicle without both a price and photos. Writes packs.json; the workflow
- * commits it when it changes.
+ * Pulls ALL Lexus of Brookfield PRE-OWNED inventory (every make on used-inventory,
+ * plus L/Certified) from the public dealer.com pages. Honors HTTP 429 Retry-After.
+ * Refuses to overwrite packs.json with a silently partial collection.
  */
 import { chromium } from "playwright";
 import fs from "node:fs";
+import {
+  DEALER,
+  PREOWNED_SOURCES,
+  collectionComplete,
+  dedupeVehicles,
+  extractMakeFacets,
+  extractNextListingUrls,
+  extractTotalCount,
+  isNewVehicle,
+  isPreownedListing,
+  makeBreakdown,
+  makeFacetTotal,
+  prettyMake,
+  shouldWritePacks,
+  toPack,
+  vehiclesFromListingHtml,
+} from "./dealer-inventory.mjs";
+import { header, isRetryableHttp, retryDelayMs } from "./http-retry.mjs";
 
-const ROOFTOPS = [
-  {
-    site: "https://www.hyundailakecountry.com/new-vehicles/",
-    rooftop: "Lake Country Hyundai",
-    facetFilters: { custom_text_5: ["Boucher Hyundai of Lake Country"] },
-  },
-  {
-    site: "https://www.nissanlakecountry.com/new-vehicles/",
-    rooftop: "Lake Country Nissan",
-    facetFilters: null,
-  },
-];
+const PAGE_SIZE = 24;
+const SUCCESS_GAP_MS = 8000;
+const MAX_RETRIES = 8;
 
-const REQUESTED_FIELDS = [
-  "vin", "stock", "type", "year", "make", "model", "trim", "mileage", "features",
-  "vdp_url", "body_details", "styles", "mechanical", "pricing", "media", "status",
-];
-
-async function pullSite(page, url, facetFilters) {
-  await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
-  await page.waitForFunction(
-    () => window.SEARCH_SERVICE && window.SEARCH_SERVICE.apiKey && window.SEARCH_SERVICE.search,
-    null,
-    { timeout: 45000 }
-  );
-  return page.evaluate(
-    async ({ facetFilters, RF }) => {
-      const svc = window.SEARCH_SERVICE;
-      const endpoint = svc.search + "/search";
-      const H = { "Content-Type": "application/json", "x-api-key": svc.apiKey };
-      const num = (n) => { n = Number(n); return Number.isFinite(n) && n > 0 ? Math.round(n) : 0; };
-      const pickPrice = (p) => { p = p || {}; return num(p.internet_price) || num(p.price) || num(p.our_price) || num(p.msrp) || 0; };
-      const compact = (v) => {
-        const m = v.mechanical || {}, s = v.styles || {}, b = v.body_details || {}, p = v.pricing || {}, md = v.media || {};
-        return {
-          vin: v.vin, stock: v.stock, type: v.type, year: v.year, make: v.make, model: v.model, trim: v.trim,
-          mileage: v.mileage, vdpUrl: v.vdp_url, drivetrain: m.drivetrain, fuel: m.fuel_type,
-          transmission: m.transmission, engine: m.engine, exterior: s.exterior_color, interior: s.interior_color,
-          extGen: s.exterior_color_generic, intGen: s.interior_color_generic, bodyType: b.type || b.generic_type,
-          price: pickPrice(p), features: Array.isArray(v.features) ? v.features : [],
-          photoUrls: Array.isArray(md.images) ? md.images.slice(0, 20) : [],
-        };
-      };
-      let page = 1, all = [], total = Infinity;
-      while (all.length < total && page <= 40) {
-        const body = { page, perPage: 100, filters: { status: ["publish", "modified", "pend-sale"] }, requestedFields: RF };
-        if (facetFilters) body.facetFilters = facetFilters;
-        const r = await fetch(endpoint, { method: "POST", headers: H, body: JSON.stringify(body) });
-        if (!r.ok) throw new Error("API " + r.status);
-        const j = await r.json();
-        total = j.meta.pagination.total;
-        const list = (j.data && j.data.listings) || [];
-        if (!list.length) break;
-        all.push(...list.map(compact));
-        page++;
-      }
-      return { total, recs: all };
-    },
-    { facetFilters, RF: REQUESTED_FIELDS }
-  );
-}
-
-// Pull the real equipment strings off a VDP (list items + feature/spec leaf nodes).
 function vdpFeatureExtractor() {
   const out = new Set();
   const add = (s) => {
     s = (s || "").replace(/\s+/g, " ").trim();
     if (s && s.length >= 3 && s.length <= 60) out.add(s);
   };
-  document.querySelectorAll("li").forEach((li) => { if (!li.querySelector("a,button,input,img,svg")) add(li.textContent); });
+  document.querySelectorAll("li").forEach((li) => {
+    if (!li.querySelector("a,button,input,img,svg")) add(li.textContent);
+  });
   document.querySelectorAll('[class*="feature"],[class*="equipment"],[class*="option"],[class*="spec"]').forEach((n) => {
     if (n.children.length === 0) add(n.textContent);
   });
   return [...out];
 }
 
-// Rank equipment premium-first so loaded trims lead with their good stuff and
-// base trims show standard gear. Returns up to 6 clean, buyer-friendly bullets.
 function buildKeyEquipment(sources, pack) {
   const hay = (sources || []).join("  •  ");
   const has = (re) => re.test(hay);
@@ -100,21 +57,21 @@ function buildKeyEquipment(sources, pack) {
     picks.push(label);
   };
 
-  // --- premium / trim-distinguishing ---
   if (has(/\bmassage/i)) add("Massage Seats", "seatcomfort");
   if (!taken.has("seatcomfort") && has(/climate.?controlled.*seat|climate controlled front/i)) add("Climate-Controlled Seats", "seatcomfort");
   if (!taken.has("seatcomfort") && has(/ventilated (front )?seat|cooled (front )?seat|air.?conditioned seat/i)) add("Ventilated Front Seats", "seatcomfort");
   if (has(/heated steering/i)) add("Heated Steering Wheel");
   if (has(/around view|surround view|\b360|bird.?eye|intelligent around|multi.?view camera/i)) add("360° Camera", "camera");
   if (has(/\bbose\b/i)) add("Bose Premium Audio", "audio");
+  else if (has(/mark levinson/i)) add("Mark Levinson Audio", "audio");
   else if (has(/harman.?kardon/i)) add("Harman Kardon Audio", "audio");
+  else if (has(/lexicon/i)) add("Lexicon Premium Audio", "audio");
   if (has(/panoramic (sun|moon)roof|dual.?pane (sun|moon)roof|panoramic roof/i)) add("Panoramic Moonroof", "roof");
   if (has(/semi-aniline|nappa|quilted/i)) add("Premium Leather", "leather");
   if (has(/head-?up display|\bhud\b/i)) add("Head-Up Display");
   if (has(/adaptive cruise|propilot|pro pilot|highway driving assist/i)) add("Adaptive Cruise Control");
   if (has(/second row captain|2nd row captain|captain'?s chair/i)) add("Captain’s Chairs");
 
-  // --- standard ---
   if (!taken.has("seatcomfort") && has(/heated (front )?seat/i)) add("Heated Seats", "seatcomfort");
   if (has(/apple carplay|android auto|\bcarplay\b/i)) add("Apple CarPlay / Android Auto");
   if (has(/blind spot|blind-spot/i)) add("Blind Spot Monitor");
@@ -134,126 +91,253 @@ function buildKeyEquipment(sources, pack) {
   return picks.slice(0, 6);
 }
 
-const tc = (s) => String(s || "").trim().split(/\s+/).map((w) => (w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w)).join(" ");
-function cleanFuel(f) {
-  const t = String(f || "").toLowerCase();
-  if (/electric/.test(t) && !/hybrid/.test(t)) return "Electric";
-  if (/plug-?in|phev/.test(t)) return "Plug-in hybrid";
-  if (/hybrid/.test(t)) return "Hybrid";
-  if (/diesel/.test(t)) return "Diesel";
-  if (/flex|e85/.test(t)) return "Flex";
-  if (/hydrogen|fuel cell/.test(t)) return "Hydrogen";
-  return "Gasoline";
-}
-function cleanBody(b) {
-  const t = String(b || "").toLowerCase();
-  if (/suv|sport utility|crossover/.test(t)) return "SUV";
-  if (/truck|pickup|cab/.test(t)) return "Truck";
-  if (/sedan/.test(t)) return "Sedan";
-  if (/coupe/.test(t)) return "Coupe";
-  if (/hatch/.test(t)) return "Hatchback";
-  if (/minivan|van/.test(t)) return "Minivan";
-  if (/wagon/.test(t)) return "Wagon";
-  if (/convertible/.test(t)) return "Convertible";
-  return String(b || "").trim();
-}
-function toPack(r, rooftop) {
-  const make = tc(r.make), model = tc(r.model), bodyStyle = cleanBody(r.bodyType);
-  const miles = Number(r.mileage) || 0;
-  return {
-    stock: r.stock, year: String(r.year || ""), make, model, trim: r.trim || "", bodyStyle,
-    mileage: String(miles), vin: r.vin, condition: /new/i.test(r.type) ? "NEW" : "USED",
-    exterior: r.exterior || "", interior: r.interior || "", transmission: r.transmission || "",
-    fuel: cleanFuel(r.fuel), drivetrain: r.drivetrain || "", engine: "", // engine left blank so the Model line shows drivetrain (AWD), not the engine
-    titleStatus: "Title Clean", zip: "53066", price: r.price > 0 ? String(r.price) : "",
-    title: [r.year, make, model, r.trim, bodyStyle].filter(Boolean).join(" "), rooftop,
-    photoUrls: Array.isArray(r.photoUrls) ? r.photoUrls : [], odometerMiles: miles, vdpUrl: r.vdpUrl || "",
-    interiorName: r.interior || "", interiorFb: r.intGen || "", exteriorFb: r.extGen || "",
-    photoUrlCount: Array.isArray(r.photoUrls) ? r.photoUrls.length : 0,
-    features: Array.isArray(r.features) ? r.features : [], keyEquipment: [], type: r.type,
-  };
+async function gotoWithRetry(page, url) {
+  let lastStatus = 0;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const resp = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
+    lastStatus = resp?.status?.() || 0;
+    const html = await page.content();
+    if (!isRetryableHttp(lastStatus, html) && html.length > 2000) {
+      return { resp, html, status: lastStatus };
+    }
+    const delay = retryDelayMs(resp?.headers?.() || {}, attempt, { baseMs: 15000, capMs: 90000 });
+    const ra = header(resp?.headers?.() || {}, "retry-after") || "none";
+    console.log(`HTTP ${lastStatus} ${url} — wait ${delay}ms (Retry-After=${ra}, attempt ${attempt + 1}/${MAX_RETRIES + 1})`);
+    if (attempt === MAX_RETRIES) break;
+    await page.waitForTimeout(delay);
+  }
+  throw new Error(`blocked fetching ${url} (last HTTP ${lastStatus}) after Retry-After/backoff`);
 }
 
-// Read every vehicle's VDP (a few in parallel) and set pack.keyEquipment.
-async function enrichFromVdps(ctx, packs) {
-  const CONCURRENCY = 4;
-  let idx = 0;
-  let ok = 0;
-  async function worker() {
-    const page = await ctx.newPage();
-    while (idx < packs.length) {
-      const pk = packs[idx++];
-      let feats = [];
-      if (pk.vdpUrl) {
-        try {
-          await page.goto(pk.vdpUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
-          await page.waitForTimeout(700);
-          feats = await page.evaluate(vdpFeatureExtractor);
-          if (feats.length) ok++;
-        } catch {
-          /* keep API features as the source */
+function listingUrl(base, { start, make, pageSize } = {}) {
+  const u = new URL(base);
+  if (start) u.searchParams.set("start", String(start));
+  else u.searchParams.delete("start");
+  if (make) u.searchParams.set("make", make);
+  if (pageSize) u.searchParams.set("pageSize", String(pageSize));
+  return u.toString();
+}
+
+function haveForMake(breakdown, facet) {
+  const keys = [facet.make, facet.label, facet.value, prettyMake(facet.value), prettyMake(facet.make)];
+  for (const k of keys) {
+    if (k && breakdown[k]) return breakdown[k];
+  }
+  return 0;
+}
+
+async function collectListingPage(page, url, label) {
+  const got = await gotoWithRetry(page, url);
+  await page.waitForTimeout(SUCCESS_GAP_MS);
+  const vehicles = vehiclesFromListingHtml(got.html);
+  console.log(`${label}: ${vehicles.length} on ${url}`);
+  return { html: got.html, vehicles };
+}
+
+async function pullPagedListing(page, source) {
+  const first = await collectListingPage(page, source.page, `${source.name} start=0`);
+  const expectedTotal = extractTotalCount(first.html) || 0;
+  const facets = extractMakeFacets(first.html);
+  const facetSum = makeFacetTotal(facets);
+  console.log(
+    `${source.name}: site total=${expectedTotal} makeFacets=${facets.length} facetSum=${facetSum} makes=${facets.map((f) => f.make + ":" + f.count).join(",")}`
+  );
+
+  let vehicles = dedupeVehicles(first.vehicles).filter(isPreownedListing);
+  const target = Math.max(expectedTotal, facetSum);
+
+  if (vehicles.length < target && facets.length) {
+    const missing = [...facets]
+      .filter((f) => !/^lexus$/i.test(f.value || f.make || ""))
+      .sort((a, b) => a.count - b.count);
+    for (const facet of missing) {
+      if (vehicles.length >= target) break;
+      const got = haveForMake(makeBreakdown(vehicles), facet);
+      if (got >= facet.count) continue;
+      const makeValue = facet.value || facet.make;
+      try {
+        const url = listingUrl(source.page, { make: makeValue });
+        const page1 = await collectListingPage(page, url, `${source.name} make=${makeValue}`);
+        vehicles = dedupeVehicles([...vehicles, ...page1.vehicles]).filter(isPreownedListing);
+        const still = haveForMake(makeBreakdown(vehicles), facet);
+        if (still < facet.count) {
+          for (let start = PAGE_SIZE; start < facet.count; start += PAGE_SIZE) {
+            const moreUrl = listingUrl(source.page, { make: makeValue, start });
+            const more = await collectListingPage(page, moreUrl, `${source.name} make=${makeValue} start=${start}`);
+            vehicles = dedupeVehicles([...vehicles, ...more.vehicles]).filter(isPreownedListing);
+          }
         }
+        console.log(`${source.name}: make=${makeValue} unique=${vehicles.length}/${target}`);
+      } catch (e) {
+        console.log(`${source.name}: make=${makeValue} skipped: ${e.message || e}`);
       }
-      pk.keyEquipment = buildKeyEquipment([...(feats || []), ...(pk.features || [])], pk);
     }
+  }
+
+  if (vehicles.length < target) {
+    const queued = new Set();
+    for (const href of extractNextListingUrls(first.html)) queued.add(href);
+    for (let start = PAGE_SIZE; start < target; start += PAGE_SIZE) {
+      queued.add(listingUrl(source.page, { start }));
+    }
+    for (const url of queued) {
+      if (vehicles.length >= target) break;
+      try {
+        const next = await collectListingPage(page, url, source.name);
+        if (!next.vehicles.length) continue;
+        vehicles = dedupeVehicles([...vehicles, ...next.vehicles]).filter(isPreownedListing);
+        console.log(`${source.name}: unique=${vehicles.length}/${target} after ${url}`);
+      } catch (e) {
+        console.log(`${source.name}: pagination stop ${url}: ${e.message || e}`);
+      }
+    }
+  }
+
+  const newish = vehicles.filter(isNewVehicle).length;
+  console.log(`${source.name}: pulled=${vehicles.length} expected=${target} newSkipped=${newish}`);
+  return { vehicles, expectedTotal: target, facets };
+}
+
+async function enrichFromVdps(ctx, packs) {
+  let ok = 0;
+  const page = await ctx.newPage();
+  try {
+    for (let i = 0; i < packs.length; i++) {
+      const pk = packs[i];
+      if (!pk.vdpUrl) continue;
+      try {
+        const { html } = await gotoWithRetry(page, pk.vdpUrl);
+        await page.waitForTimeout(400);
+        const feats = await page.evaluate(vdpFeatureExtractor);
+        pk.keyEquipment = buildKeyEquipment([...(feats || []), ...(pk.features || [])], pk);
+        if (feats.length) {
+          pk.features = [...(pk.features || []), ...feats];
+          ok += 1;
+        }
+      } catch (e) {
+        console.log(`VDP enrich stop at ${i + 1}/${packs.length}: ${e.message || e}`);
+        pk.keyEquipment = buildKeyEquipment(pk.features || [], pk);
+        break;
+      }
+    }
+  } finally {
     await page.close();
   }
-  await Promise.all(Array.from({ length: CONCURRENCY }, worker));
   console.log(`VDP equipment read for ${ok}/${packs.length} vehicles`);
 }
 
 async function main() {
   const browser = await chromium.launch({ args: ["--no-sandbox"] });
   const ctx = await browser.newContext({
-    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    userAgent:
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
   });
   const page = await ctx.newPage();
 
-  const packs = [];
-  for (const rt of ROOFTOPS) {
-    const { total, recs } = await pullSite(page, rt.site, rt.facetFilters);
-    // PRE-OWNED ONLY (skip New), with a price and a REAL photo set (>= 4 photos).
-    // A single stray/placeholder photo means the real pictures aren't up yet — skip
-    // until they are (a finished listing has ~20).
-    const MIN_PHOTOS = 4;
-    const listable = recs.filter(
-      (r) => !/new/i.test(r.type) && r.price > 0 && Array.isArray(r.photoUrls) && r.photoUrls.length >= MIN_PHOTOS
-    );
-    console.log(`${rt.rooftop}: total=${total} pulled=${recs.length} preowned+price+photos=${listable.length}`);
-    if (!recs.length) throw new Error(`No vehicles pulled for ${rt.rooftop} — aborting so we don't publish an empty file`);
-    packs.push(...listable.map((r) => toPack(r, rt.rooftop)));
+  const pulled = [];
+  const errors = [];
+  const sourcesUsed = [];
+  let expectedUsed = 0;
+  let usedFacets = [];
+
+  for (const source of PREOWNED_SOURCES) {
+    if (source.name === "cpo" && collectionComplete({ expectedTotal: expectedUsed, uniqueCount: dedupeVehicles(pulled).length })) {
+      console.log("skipping CPO listing; used-inventory already complete (CPO is a subset)");
+      continue;
+    }
+    try {
+      const got = await pullPagedListing(page, source);
+      pulled.push(...got.vehicles);
+      sourcesUsed.push(source.page);
+      if (source.name === "used") {
+        expectedUsed = got.expectedTotal;
+        usedFacets = got.facets;
+      }
+    } catch (e) {
+      errors.push(`${source.name}: ${e.message || e}`);
+      console.error(e);
+    }
   }
+
   await page.close();
 
-  await enrichFromVdps(ctx, packs);
+  const vehicles = dedupeVehicles(pulled).filter(isPreownedListing);
+  const unique = vehicles.length;
+  const complete = collectionComplete({ expectedTotal: expectedUsed, uniqueCount: unique });
+  const pulledMakes = makeBreakdown(vehicles);
+  console.log(`unique preowned=${unique} expectedUsed=${expectedUsed} complete=${complete}`);
+  console.log("make breakdown", JSON.stringify(pulledMakes));
+
+  let previous = { packs: [] };
+  try {
+    previous = JSON.parse(fs.readFileSync("packs.json", "utf8"));
+  } catch {}
+  const previousCount = Array.isArray(previous.packs) ? previous.packs.length : 0;
+  const gate = shouldWritePacks({ complete, previousCount, newCount: unique });
+  if (!gate.write) {
+    await browser.close();
+    const missing = usedFacets
+      .map((f) => ({ make: f.make, expected: f.count, got: pulledMakes[f.make] || 0 }))
+      .filter((r) => r.got < r.expected);
+    console.error(
+      `NOT writing packs.json (${gate.reason}). unique=${unique} expected=${expectedUsed}. missingMakes=${JSON.stringify(missing)}. errors=${errors.join("; ") || "none"}`
+    );
+    process.exit(2);
+  }
+
+  const packs = vehicles.map(toPack);
+  if (packs.some((p) => /lake country|boucher|nissanlakecountry|hyundailakecountry/i.test(p.rooftop + p.vdpUrl))) {
+    await browser.close();
+    throw new Error("Refusing to write old-dealership URLs into packs.json");
+  }
+  if (packs.some((p) => p.condition === "NEW" || /\/new\/|\/electric-new\//i.test(p.vdpUrl))) {
+    await browser.close();
+    throw new Error("New inventory leaked into packs — aborting");
+  }
+
+  for (const pk of packs) {
+    pk.keyEquipment = buildKeyEquipment(pk.features || [], pk);
+  }
   await browser.close();
 
-  if (packs.length < 10) throw new Error(`Only ${packs.length} pre-owned vehicles — suspiciously low, aborting`);
-
-  // "What sold" report: pre-owned units that were in the previous packs.json but
-  // are no longer on the site (sold / removed) — so Jed knows what to take down.
-  let previous = [];
-  try { previous = JSON.parse(fs.readFileSync("packs.json", "utf8")).packs || []; } catch {}
   const nowStocks = new Set(packs.map((p) => p.stock));
-  const sold = previous
+  const sold = (previous.packs || [])
     .filter((p) => p.condition !== "NEW" && !nowStocks.has(p.stock))
+    .filter((p) => /lexus of brookfield|lexusofbrookfield/i.test([p.rooftop, p.vdpUrl].join(" ")))
     .map((p) => ({
-      stock: p.stock, vin: p.vin,
+      stock: p.stock,
+      vin: p.vin,
       vehicle: [p.year, p.make, p.model, p.trim].filter(Boolean).join(" "),
-      rooftop: p.rooftop, lastPrice: p.price,
+      rooftop: p.rooftop,
+      lastPrice: p.price,
     }));
 
   const out = {
     generatedAt: new Date().toISOString(),
-    source: "carscommerce websites-search API + VDP equipment (Lake Country, PRE-OWNED only, price+photos)",
+    source: sourcesUsed.join(" + ") + " (PRE-OWNED, all makes)",
+    dealer: DEALER.name,
+    site: DEALER.site,
+    complete: true,
+    expectedTotal: expectedUsed,
     count: packs.length,
+    makes: pulledMakes,
+    makeFacets: usedFacets,
+    sources: sourcesUsed,
     soldSinceLast: sold.length,
     sold,
     packs,
   };
   fs.writeFileSync("packs.json", JSON.stringify(out));
-  console.log(`Wrote packs.json — ${packs.length} pre-owned, ${sold.length} sold since last run, ${(fs.statSync("packs.json").size / 1024 / 1024).toFixed(2)} MB`);
+  console.log(
+    `Wrote packs.json — ${packs.length} pre-owned (complete vs ${expectedUsed}), ${sold.length} sold since last run, ${(
+      fs.statSync("packs.json").size / 1024 / 1024
+    ).toFixed(2)} MB`
+  );
   if (sold.length) console.log("SOLD/removed:\n" + sold.map((s) => "  - " + s.stock + "  " + s.vehicle).join("\n"));
+  if (errors.length) console.log("Source warnings:\n" + errors.map((e) => "  - " + e).join("\n"));
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

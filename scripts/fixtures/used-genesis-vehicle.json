@@ -1,0 +1,34 @@
+{
+  "uuid": "82754bd9ac180097404c2aaa144db3e4",
+  "vin": "KMUHCESC6RU160210",
+  "stockNumber": "28159A",
+  "year": 2024,
+  "make": "Genesis",
+  "model": "GV80",
+  "trim": "3.5T",
+  "bodyStyle": "SUV",
+  "type": "used",
+  "condition": "Used",
+  "certified": false,
+  "link": "/used/Genesis/2024-Genesis-GV80-82754bd9ac180097404c2aaa144db3e4.htm",
+  "title": ["2024 Genesis GV80 3.5T"],
+  "fuelType": "Gasoline",
+  "attributes": [
+    { "name": "engine", "value": "3.5L V-6 cyl" },
+    { "name": "transmission", "value": "8-Speed Automatic w/OD" },
+    { "name": "exteriorColor", "value": "Makalu Gray", "normalizedValue": "Gray" },
+    { "name": "interiorColor", "value": "Black", "normalizedValue": "Black" },
+    { "name": "stockNumber", "value": "28159A" }
+  ],
+  "trackingAttributes": [
+    { "name": "driveLine", "value": "All-Wheel Drive" },
+    { "name": "odometer", "value": "20520" },
+    { "name": "exteriorColor", "value": "Makalu Gray", "normalizedValue": "Gray" },
+    { "name": "interiorColor", "value": "Black", "normalizedValue": "Black" },
+    { "name": "fuelType", "value": "Gasoline" },
+    { "name": "transmission", "value": "8-Speed Automatic w/OD" }
+  ],
+  "classification": "primary",
+  "status": "live",
+  "accountId": "lexusofbrookfieldwi"
+}
