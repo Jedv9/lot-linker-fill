@@ -16,8 +16,9 @@ This build is pre-owned only. New Lexus inventory is not loaded. Pre-owned inclu
 ## Use
 1. Open Facebook Marketplace → create **vehicle** listing (`/marketplace/create/vehicle` or equivalent)
 2. Open the extension, search by stock / VIN / model — each row shows mileage and price
-3. Click **Fill** (Vehicle type Car/Truck first, then Year, Make, Price, Mileage, body, colors, fuel, Model, description, photos)
+3. Click **Fill** (Vehicle type Car/Truck first, then Year, Make, Price, Mileage, body, colors, fuel, Model, description, photos). Fill also marks that stock as listed on Marketplace.
 4. You click Post — the extension never publishes
+5. When a listed car leaves the Brookfield site, **Sold — take these down** shows year/make/model/trim, stock, VIN last 6, last advertised total price, and the date it was detected gone. Click **Taken down** after you remove the Facebook listing. The toolbar icon badge is the count still waiting. Use **Listed on Marketplace** on a stock if you listed it without Fill.
 
 Jed should not download photos separately. **Save photos (fallback)** is only if Marketplace’s picker misses (Facebook UI change / no file input).
 
@@ -44,7 +45,9 @@ The service worker does the fetch so Facebook is not sent as `Referer`. Host per
 Facebook caveats: the picker is often a hidden file input behind “Add photos”. Marketplace may cap how many images stick; extras are dropped by FB, not posted. If the composer has not reached the vehicle photo step, Fill reports a missed photo picker — stay on create/vehicle and retry.
 
 ## Packs
-Bundled `packs.json` loads on open. **Refresh packs** pulls the latest `packs.json` from this repo (optional `chrome.storage` override). Packs from the old Lake Country rooftops are ignored so they cannot silently replace Brookfield inventory.
+Bundled `packs.json` loads on open. **Refresh packs** pulls the latest `packs.json` from this repo (optional `chrome.storage` override). Packs from the old Lake Country rooftops are ignored so they cannot silently replace Brookfield inventory. Refresh also compares the stock numbers the extension had stored before against the new file and adds anything that vanished to the sold list (even if `packs.json` `sold` missed it). Incomplete remotes are skipped so a partial pull is never treated as a mass sale.
+
+`packs.json` keeps a rolling `soldHistory` (about 60 days, with `detectedAt`) plus the last-run `sold` / `soldSinceLast` lists. The popup keeps undismissed rows in `chrome.storage` until Jed clicks **Taken down**.
 
 Weekly GitHub Action: `scripts/scrape-inventory.mjs` reads the public dealer.com listing pages (HTML + JSON-LD, including `?start=` pagination and `?make=` filters):
 
@@ -69,7 +72,7 @@ If the public listing is blocked, a dealer-provided inventory export/feed (CSV/J
 ```
 bash scripts/build-zip.sh
 ```
-Writes `dist/LotLinker.zip` (use this on Windows), plus `dist/lot-linker-fill-2.4.0.zip` and `dist/lot-linker-fill.zip`. Unzip and Load unpacked on the `lot-linker-fill` folder inside.
+Writes `dist/LotLinker.zip` (use this on Windows), plus `dist/lot-linker-fill-2.5.0.zip` and `dist/lot-linker-fill.zip`. Unzip and Load unpacked on the `lot-linker-fill` folder inside.
 
 ## Tests
 ```
@@ -78,6 +81,6 @@ npm run test:fixtures
 ```
 
 ## Version
-2.4.0
+2.5.0
 
 One-click Fill **first** sets **Vehicle type** to **Car/Truck** (Year/Make/etc. will not take until this is set), then writes **Year**, **Make**, **Price**, **Mileage**, **Body style**, **Exterior color**, **Interior color**, **Fuel type**, **Model** title line, **Description**, and **photos**. **VIN is never written**. Clean title and vehicle condition are never written. Description fill still walks Facebook’s vehicle-create markup. Comboboxes open then click a matching `[role=option]`. Price and Mileage use digits only.

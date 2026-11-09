@@ -22,6 +22,21 @@
     .body { max-height: 180px; overflow: auto; white-space: pre-wrap; font-size: 11px; color: #cbd5e1; margin-top: 8px; }
     .status { font-size: 11px; color: #93c5fd; min-height: 14px; }
     .warn { color: #fbbf24; font-size: 11px; margin: 0; }
+    .sold { background: #1c1012; border: 1px solid #7f1d1d; }
+    .sold-head { font-weight: 650; color: #fecaca; display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+    .sold-count { color: #fca5a5; font-size: 11px; font-weight: 600; }
+    .sold-list { max-height: 220px; overflow: auto; margin-top: 6px; display: grid; gap: 8px; }
+    .sold-item { border-top: 1px solid #3f1d24; padding-top: 8px; }
+    .sold-item:first-child { border-top: 0; padding-top: 0; }
+    .sold-item.listed { border-left: 3px solid #fbbf24; padding-left: 8px; }
+    .sold-name { font-weight: 650; font-size: 12px; color: #f8fafc; }
+    .sold-meta { font-size: 11px; color: #cbd5e1; margin-top: 2px; }
+    .sold-date { font-size: 11px; color: #fca5a5; margin-top: 2px; }
+    .sold-chip { display: inline-block; font-size: 10px; font-weight: 700; color: #422006; background: #fbbf24; border-radius: 999px; padding: 1px 7px; margin-left: 6px; vertical-align: middle; }
+    .sold-actions { margin-top: 6px; }
+    button.taken { background: #334155; color: #e2e8f0; font-size: 11px; padding: 5px 8px; }
+    .listed-flag { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #cbd5e1; margin-top: 8px; }
+    .listed-flag input { width: auto; margin: 0; }
   </style>
 </head>
 <body>
@@ -30,6 +45,10 @@
     <div class="sub">Lexus of Brookfield pre-owned · Vehicle type Car/Truck first, then Year/Make/Price/Mileage/body/colors/fuel/Model/description/photos · never VIN · you always hit Post</div>
   </header>
   <div class="wrap">
+    <div id="soldSection" class="card sold" hidden>
+      <div class="sold-head">Sold — take these down <span class="sold-count" id="soldCount"></span></div>
+      <div class="sold-list" id="soldList"></div>
+    </div>
     <input id="q" type="search" placeholder="Search stock / VIN / model…" autocomplete="off" />
     <select id="fStore" title="Store">
       <option value="">All stores</option>
@@ -40,6 +59,10 @@
       <div class="title" id="mTitle"></div>
       <div class="sub" id="mPhotos"></div>
       <div class="body" id="mBody"></div>
+      <label class="listed-flag">
+        <input type="checkbox" id="listedOnFb" />
+        Listed on Marketplace
+      </label>
     </div>
     <div class="row">
       <button id="fill" disabled>Fill</button>
@@ -52,6 +75,7 @@
   </div>
   <script src="config.js"></script>
   <script src="listing-copy.js"></script>
+  <script src="sold-watch.js"></script>
   <script src="photos.js"></script>
   <script src="popup.js"></script>
 </body>

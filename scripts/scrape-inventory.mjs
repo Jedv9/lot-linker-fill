@@ -6,6 +6,7 @@
  */
 import { chromium } from "playwright";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import {
   DEALER,
   PREOWNED_SOURCES,
@@ -24,6 +25,9 @@ import {
   vehiclesFromListingHtml,
 } from "./dealer-inventory.mjs";
 import { header, isRetryableHttp, retryDelayMs } from "./http-retry.mjs";
+
+const require = createRequire(import.meta.url);
+const soldWatch = require("../sold-watch.js");
 
 const PAGE_SIZE = 24;
 const SUCCESS_GAP_MS = 8000;
@@ -300,20 +304,21 @@ async function main() {
   }
   await browser.close();
 
-  const nowStocks = new Set(packs.map((p) => p.stock));
-  const sold = (previous.packs || [])
-    .filter((p) => p.condition !== "NEW" && !nowStocks.has(p.stock))
-    .filter((p) => /lexus of brookfield|lexusofbrookfield/i.test([p.rooftop, p.vdpUrl].join(" ")))
-    .map((p) => ({
-      stock: p.stock,
-      vin: p.vin,
-      vehicle: [p.year, p.make, p.model, p.trim].filter(Boolean).join(" "),
-      rooftop: p.rooftop,
-      lastPrice: p.price,
-    }));
+  const generatedAt = new Date().toISOString();
+  const snapshot = soldWatch.buildSoldSnapshot({
+    previousPacks: previous.packs || [],
+    nextPacks: packs,
+    previousHistory: previous.soldHistory || previous.sold || [],
+    now: generatedAt,
+    keepDays: soldWatch.KEEP_DAYS,
+    complete: true,
+    expectedTotal: expectedUsed,
+  });
+  const sold = snapshot.sold;
+  const soldHistory = snapshot.soldHistory;
 
   const out = {
-    generatedAt: new Date().toISOString(),
+    generatedAt,
     source: sourcesUsed.join(" + ") + " (PRE-OWNED, all makes)",
     dealer: DEALER.name,
     site: DEALER.site,
@@ -325,11 +330,12 @@ async function main() {
     sources: sourcesUsed,
     soldSinceLast: sold.length,
     sold,
+    soldHistory,
     packs,
   };
   fs.writeFileSync("packs.json", JSON.stringify(out));
   console.log(
-    `Wrote packs.json — ${packs.length} pre-owned (complete vs ${expectedUsed}), ${sold.length} sold since last run, ${(
+    `Wrote packs.json — ${packs.length} pre-owned (complete vs ${expectedUsed}), ${sold.length} sold since last run, ${soldHistory.length} in ${soldWatch.KEEP_DAYS}-day soldHistory, ${(
       fs.statSync("packs.json").size / 1024 / 1024
     ).toFixed(2)} MB`
   );

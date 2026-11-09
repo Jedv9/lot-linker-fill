@@ -2,6 +2,9 @@ let packs = [];
 let selected = null;
 let researchPromise = null;
 let researchStock = null;
+let soldWatch = [];
+let soldDismissed = {};
+let listedStocks = {};
 
 const $ = (id) => document.getElementById(id);
 const status = (t) => { $("status").textContent = t || ""; };
@@ -10,6 +13,10 @@ function listingFor(pack) {
   return (typeof LotLinkerListing !== "undefined" && LotLinkerListing.fromPack)
     ? LotLinkerListing.fromPack(pack)
     : { title: pack?.title || "", modelLine: pack?.modelLine || "", body: pack?.body || "" };
+}
+
+function soldApi() {
+  return typeof LotLinkerSold !== "undefined" ? LotLinkerSold : null;
 }
 
 function showRefreshMeta(iso) {
@@ -51,18 +58,179 @@ function normalizePacks(list) {
   return currentDealerPacks(list).map(withDealerFees);
 }
 
+function payloadMeta(data) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    return { complete: true, expectedTotal: 0, soldHistory: [], sold: [] };
+  }
+  return {
+    complete: data.complete,
+    expectedTotal: data.expectedTotal,
+    soldHistory: Array.isArray(data.soldHistory) ? data.soldHistory : [],
+    sold: Array.isArray(data.sold) ? data.sold : [],
+  };
+}
+
+async function persistSoldState({
+  previousPacks,
+  nextPacks,
+  payload,
+  now,
+  skipClientDetect = false,
+} = {}) {
+  const api = soldApi();
+  if (!api) return;
+  const next = Array.isArray(nextPacks) ? nextPacks : packs;
+  const detectedAt = now || new Date().toISOString();
+  const incoming = api.rowsFromPayload(payload);
+  const detected = skipClientDetect
+    ? { sold: [], skipped: "no-baseline" }
+    : api.detectSold({
+      previousPacks,
+      nextPacks: next,
+      complete: payload?.complete,
+      expectedTotal: payload?.expectedTotal,
+      now: detectedAt,
+    });
+  soldWatch = api.mergeSoldHistory(
+    soldWatch,
+    [...incoming, ...(detected.skipped ? [] : detected.sold)],
+    {
+      now: detectedAt,
+      liveStocks: next.map((p) => p.stock),
+    }
+  );
+  soldDismissed = api.pruneDismissed(soldDismissed, next.map((p) => p.stock));
+  const summaries = next.map((p) => api.packSummary(p));
+  await chrome.storage.local.set({
+    soldWatch,
+    soldDismissed,
+    lastSeenSummaries: summaries,
+    lastSoldPayload: payloadMeta(payload),
+  });
+  renderSold();
+}
+
+function renderSold() {
+  const api = soldApi();
+  const section = $("soldSection");
+  const list = $("soldList");
+  const countEl = $("soldCount");
+  if (!section || !list) return;
+  if (!api) {
+    section.hidden = true;
+    return;
+  }
+  const open = api.sortSoldForDisplay(
+    api.undismissedSold(soldWatch, soldDismissed),
+    listedStocks
+  );
+  if (!open.length) {
+    section.hidden = true;
+    list.innerHTML = "";
+    if (countEl) countEl.textContent = "";
+    return;
+  }
+  section.hidden = false;
+  if (countEl) countEl.textContent = `${open.length} to take down`;
+  list.innerHTML = "";
+  for (const row of open) {
+    const item = document.createElement("div");
+    const flagged = api.isListed(listedStocks, row.stock);
+    item.className = flagged ? "sold-item listed" : "sold-item";
+    item.dataset.stock = row.stock;
+    const name = document.createElement("div");
+    name.className = "sold-name";
+    name.textContent = api.soldHeadline(row);
+    if (flagged) {
+      const chip = document.createElement("span");
+      chip.className = "sold-chip";
+      chip.textContent = "Listed";
+      name.appendChild(chip);
+    }
+    const meta = document.createElement("div");
+    meta.className = "sold-meta";
+    meta.textContent = api.soldMeta(row);
+    const when = document.createElement("div");
+    when.className = "sold-date";
+    when.textContent = api.soldDateLabel(row);
+    const actions = document.createElement("div");
+    actions.className = "sold-actions";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "taken";
+    btn.dataset.stock = row.stock;
+    btn.textContent = "Taken down";
+    actions.appendChild(btn);
+    item.appendChild(name);
+    item.appendChild(meta);
+    if (when.textContent) item.appendChild(when);
+    item.appendChild(actions);
+    list.appendChild(item);
+  }
+}
+
+async function dismissSold(stock) {
+  const api = soldApi();
+  if (!api || !stock) return;
+  soldDismissed = api.markDismissed(soldDismissed, stock, new Date().toISOString());
+  await chrome.storage.local.set({ soldDismissed });
+  renderSold();
+  status(`Taken down: ${stock}`);
+}
+
+async function setListed(stock, on) {
+  const api = soldApi();
+  if (!api || !stock) return;
+  listedStocks = api.toggleListed(listedStocks, stock, on);
+  await chrome.storage.local.set({ listedStocks });
+  renderSold();
+}
+
 async function loadBundled() {
   const res = await fetch(chrome.runtime.getURL("packs.json"));
   const data = await res.json();
   const bundled = normalizePacks(data.packs || []);
-  const stored = await chrome.storage.local.get(["packsOverride", "packsRefreshedAt"]);
+  const stored = await chrome.storage.local.get([
+    "packsOverride",
+    "packsRefreshedAt",
+    "soldWatch",
+    "soldDismissed",
+    "listedStocks",
+    "lastSeenSummaries",
+    "lastSoldPayload",
+  ]);
   const override = normalizePacks(stored.packsOverride);
   packs = override.length ? override : bundled;
+  soldWatch = Array.isArray(stored.soldWatch) ? stored.soldWatch : [];
+  soldDismissed = stored.soldDismissed && typeof stored.soldDismissed === "object" ? stored.soldDismissed : {};
+  listedStocks = stored.listedStocks && typeof stored.listedStocks === "object" ? stored.listedStocks : {};
   if (override.length) {
     await chrome.storage.local.set({ packsOverride: override });
   }
+  const hasBaseline = Array.isArray(stored.lastSeenSummaries) && stored.lastSeenSummaries.length;
+  const payload = {
+    ...payloadMeta(data),
+    ...payloadMeta(stored.lastSoldPayload),
+    soldHistory: [
+      ...payloadMeta(stored.lastSoldPayload).soldHistory,
+      ...payloadMeta(data).soldHistory,
+    ],
+    sold: [
+      ...payloadMeta(stored.lastSoldPayload).sold,
+      ...payloadMeta(data).sold,
+    ],
+    complete: override.length ? stored.lastSoldPayload?.complete : data.complete,
+    expectedTotal: override.length ? stored.lastSoldPayload?.expectedTotal : data.expectedTotal,
+  };
+  await persistSoldState({
+    previousPacks: stored.lastSeenSummaries || [],
+    nextPacks: packs,
+    payload,
+    skipClientDetect: !hasBaseline,
+  });
   fillStoreFilter();
   renderList();
+  renderSold();
   showRefreshMeta(override.length ? stored.packsRefreshedAt : "");
 }
 
@@ -134,6 +302,11 @@ function renderListing(pack) {
   const photos = $("mPhotos");
   if (photos) photos.textContent = photoMetaText(pack);
   $("mBody").textContent = listing.body;
+  const listed = $("listedOnFb");
+  if (listed) {
+    const api = soldApi();
+    listed.checked = api ? api.isListed(listedStocks, pack?.stock) : false;
+  }
 }
 
 async function ensureResearched(pack) {
@@ -181,6 +354,15 @@ $("list").addEventListener("change", () => {
   const p = packs.find((x) => x.stock === $("list").value);
   showPack(p || null);
 });
+$("soldList")?.addEventListener("click", (e) => {
+  const btn = e.target?.closest?.("button.taken");
+  if (!btn?.dataset?.stock) return;
+  dismissSold(btn.dataset.stock);
+});
+$("listedOnFb")?.addEventListener("change", () => {
+  if (!selected?.stock) return;
+  setListed(selected.stock, $("listedOnFb").checked);
+});
 
 $("fill").onclick = async () => {
   if (!selected) return;
@@ -195,6 +377,9 @@ $("fill").onclick = async () => {
     renderListing(pack);
     const res = await chrome.tabs.sendMessage(tab.id, { type: "LOT_LINKER_FILL", pack });
     if (res?.ok) {
+      await setListed(pack.stock, true);
+      const listed = $("listedOnFb");
+      if (listed) listed.checked = true;
       const bits = [`Filled: ${res.filled?.join(", ") || "ok"}`];
       if (res.missed?.length) bits.push(`missed: ${res.missed.join(", ")}`);
       if (res.photos?.count) {
@@ -231,8 +416,27 @@ $("refreshInventory").onclick = async () => {
       status("Refresh failed: no Lexus of Brookfield pre-owned packs in remote JSON");
       return;
     }
+    const api = soldApi();
+    const previousCount = packs.length;
+    const trusted = !api || api.isTrustedComplete({
+      complete: data.complete,
+      expectedTotal: data.expectedTotal,
+      nextCount: remote.length,
+      previousCount,
+    });
+    if (!trusted) {
+      status("Refresh skipped: remote packs look incomplete (not treating as mass sold)");
+      return;
+    }
+    const previousPacks = packs;
     packs = remote;
     const at = new Date().toISOString();
+    await persistSoldState({
+      previousPacks,
+      nextPacks: packs,
+      payload: payloadMeta(data),
+      now: at,
+    });
     await chrome.storage.local.set({
       packsOverride: packs,
       packsRefreshedAt: at,
@@ -240,12 +444,14 @@ $("refreshInventory").onclick = async () => {
     });
     fillStoreFilter();
     renderList();
+    renderSold();
     if (selected) {
       const fresh = packs.find((p) => p.stock === selected.stock);
       showPack(fresh || null);
     }
     showRefreshMeta(at);
-    status(`Refreshed ${packs.length} packs · ${new Date(at).toLocaleString()}`);
+    const gone = soldApi()?.undismissedCount(soldWatch, soldDismissed) || 0;
+    status(`Refreshed ${packs.length} packs · ${new Date(at).toLocaleString()}${gone ? ` · ${gone} sold to take down` : ""}`);
   } catch (e) {
     status(`Refresh failed: network error (${e?.message || e})`);
   }
