@@ -25,7 +25,7 @@
 </head>
 <body>
   <h1>Marketplace vehicle create listing (fixture)</h1>
-  <p class="warn">Fill Year, Make, Price, Mileage, Body style, colors, Fuel, Model, Description. Never VIN. Never clean title. Never condition. Never Post.</p>
+  <p class="warn">Fill Year, Make, Price, Mileage, Body style, colors, Fuel, Location (Brookfield, Wisconsin), Model, Description. Never VIN. Never clean title. Never condition. Never Post.</p>
   <div class="row">
     <button id="fillRaptor" type="button">Fill Ford PU1392</button>
     <button id="fillCpo" type="button">Fill Lexus PMT3253</button>
@@ -73,6 +73,18 @@
   <div class="fb-field">
     <span>Fuel type</span>
     <div id="fuel" role="combobox" aria-label="Fuel type" aria-haspopup="listbox" tabindex="0"></div>
+  </div>
+  <div class="fb-field">
+    <span>Location</span>
+    <input
+      id="location"
+      aria-label="Location"
+      role="combobox"
+      aria-autocomplete="list"
+      aria-haspopup="listbox"
+      value="Oconomowoc, Wisconsin"
+    />
+    <div id="location-list" role="listbox" hidden></div>
   </div>
   <div class="fb-field">
     <span>VIN</span>
@@ -141,6 +153,37 @@
     wireCombo("exterior", ["Black", "Blue", "Grey", "Gray", "Silver", "White", "Red"]);
     wireCombo("interior", ["Black", "Grey", "Gray", "Tan", "Beige", "Brown"]);
     wireCombo("fuel", ["Gasoline", "Diesel", "Electric", "Hybrid"]);
+    (function wireLocationTypeahead() {
+      const input = document.getElementById("location");
+      const list = document.getElementById("location-list");
+      const places = [
+        "Oconomowoc, Wisconsin",
+        "Brookfield, Illinois",
+        "Brookfield, Wisconsin",
+        "Brookfield, Ohio",
+      ];
+      function render(q) {
+        const first = String(q || "").toLowerCase().split(",")[0].trim();
+        list.innerHTML = "";
+        const shown = places.filter((p) => !first || p.toLowerCase().includes(first));
+        shown.forEach((v) => {
+          const o = document.createElement("div");
+          o.setAttribute("role", "option");
+          o.textContent = v;
+          o.addEventListener("click", (e) => {
+            e.stopPropagation();
+            input.value = v;
+            input.dataset.value = v;
+            list.hidden = true;
+          });
+          list.appendChild(o);
+        });
+        list.hidden = shown.length === 0;
+      }
+      input.addEventListener("focus", () => render(input.value));
+      input.addEventListener("click", () => render(input.value));
+      input.addEventListener("input", () => render(input.value));
+    })();
 
     function descEl() {
       return document.querySelector('[data-lot="description"]');
@@ -159,6 +202,7 @@
         exterior: document.getElementById("exterior").textContent.trim(),
         interior: document.getElementById("interior").textContent.trim(),
         fuel: document.getElementById("fuel").textContent.trim(),
+        location: document.getElementById("location").value,
         vin: document.getElementById("vin").value,
         titleStatus: document.getElementById("title-status").value,
         cleanTitle: document.getElementById("clean-title").checked,
@@ -185,6 +229,9 @@
       document.getElementById("title-status").value = "Clean";
       document.getElementById("clean-title").checked = false;
       document.getElementById("condition").value = "";
+      document.getElementById("location").value = "Oconomowoc, Wisconsin";
+      document.getElementById("location").dataset.value = "Oconomowoc, Wisconsin";
+      document.getElementById("location-list").hidden = true;
       const d = descEl();
       if (d) {
         d.innerHTML = "";
@@ -207,9 +254,10 @@
       const modelOk = fields.model === listing.modelLine && !/^20\d{2}\b/.test(fields.model) && !/Ford|Nissan|Hyundai|Lexus|Genesis|Honda/i.test(fields.model.split(" | ")[0] || "");
       const descOk = fields.description.includes("Wisconsin shoppers") && /\n/.test(fields.description);
       const typeOk = fields.vehicleType === "Car/Truck" && result.filled.includes("vehicleType");
-      const keysOk = ["vehicleType", "year", "make", "price", "model", "description", "mileage"].every((k) => result.filled.includes(k)) && !result.missed.length && !result.filled.includes("vin") && !result.filled.includes("condition");
+      const locationOk = fields.location === "Brookfield, Wisconsin" && result.filled.includes("location") && !/Oconomowoc/i.test(fields.location);
+      const keysOk = ["vehicleType", "year", "make", "price", "model", "description", "mileage", "location"].every((k) => result.filled.includes(k)) && !result.missed.length && !result.filled.includes("vin") && !result.filled.includes("condition");
       const hitOk = Boolean(result.descriptionHit);
-      const ok = typeOk && yearOk && makeOk && priceOk && vinOk && mileageOk && titleOk && modelOk && descOk && keysOk && hitOk;
+      const ok = typeOk && yearOk && makeOk && priceOk && vinOk && mileageOk && titleOk && modelOk && descOk && locationOk && keysOk && hitOk;
       document.getElementById("status").textContent =
         `${label}: filled ${result.filled.join(", ") || "none"} · missed ${result.missed.join(", ") || "none"} · via ${result.descriptionHit || "?"} · ${ok ? "PASS" : "FAIL"}`;
       return { label, ok, result, fields, listing };
@@ -239,6 +287,7 @@
         exterior: r.fields.exterior,
         interior: r.fields.interior,
         fuel: r.fields.fuel,
+        location: r.fields.location,
         vin: r.fields.vin,
         titleStatus: r.fields.titleStatus,
         cleanTitle: r.fields.cleanTitle,

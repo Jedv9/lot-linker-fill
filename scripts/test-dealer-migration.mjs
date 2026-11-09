@@ -41,6 +41,7 @@ assert.equal(DEALER.phone, "262-320-4619");
 assert.equal(listing.STORE, "Lexus of Brookfield");
 assert.equal(listing.CITY, "Brookfield");
 assert.equal(listing.CITY_TITLE, "Brookfield WI");
+assert.equal(listing.LOCATION, "Brookfield, Wisconsin");
 assert.equal(listing.storeName({ make: "Nissan", rooftop: "Lake Country Nissan" }), "Lexus of Brookfield");
 
 assert.ok(PREOWNED_SOURCES.some((s) => /used-inventory/.test(s.page)));
@@ -154,7 +155,7 @@ assert.deepEqual(
   ["PMT3253"]
 );
 
-assert.equal(manifest.version, "2.4.0");
+assert.equal(manifest.version, "2.5.1");
 assert.ok(manifest.host_permissions.some((h) => /lexusofbrookfield\.com/.test(h)));
 assert.ok(manifest.host_permissions.some((h) => /pictures\.dealer\.com/.test(h)));
 assert.ok(!manifest.host_permissions.some((h) => /nissanlakecountry|hyundailakecountry|boucher\.com/.test(h)));
@@ -165,6 +166,8 @@ assert.match(dealerMod, /l-certified-inventory/);
 assert.match(scraper, /isNewVehicle/);
 assert.match(scraper, /Retry-After/);
 assert.match(scraper, /shouldWritePacks/);
+assert.match(scraper, /soldHistory/);
+assert.ok(Array.isArray(packsDoc.soldHistory), "packs.json should expose rolling soldHistory");
 assert.match(scraper, /dedupeVehicles/);
 assert.doesNotMatch(scraper, /www\.nissanlakecountry|www\.hyundailakecountry/);
 assert.doesNotMatch(dealerMod, /www\.nissanlakecountry|www\.hyundailakecountry/);

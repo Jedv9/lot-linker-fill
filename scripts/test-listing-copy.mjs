@@ -209,6 +209,8 @@ assert.equal(listing.vehicleType({ bodyStyle: "Passenger Van 4D", model: "Pacifi
 assert.equal(listing.vehicleType({ bodyStyle: "SUV", model: "NX" }), "SUV");
 assert.equal(listing.vehicleType({ bodyStyle: "Sedan", model: "ES" }), "sedan");
 
+assert.equal(listing.LOCATION, "Brookfield, Wisconsin");
+assert.doesNotMatch(listing.LOCATION, /Oconomowoc/i);
 assert.equal(listing.storeName({ make: "Hyundai" }), "Lexus of Brookfield");
 assert.equal(listing.isCertified(cpoPack), true);
 assert.equal(listing.isCertified({ condition: "USED" }), false);

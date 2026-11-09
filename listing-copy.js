@@ -12,6 +12,7 @@
 })(typeof self !== "undefined" ? self : this, function () {
   const CITY = "Brookfield";
   const CITY_TITLE = "Brookfield WI";
+  const LOCATION = "Brookfield, Wisconsin";
   const STORE = "Lexus of Brookfield";
   const SERVICE_FEE = 479;
   const FILING_FEE = 38;
@@ -540,6 +541,7 @@
   return {
     CITY,
     CITY_TITLE,
+    LOCATION,
     STORE,
     SERVICE_FEE,
     FILING_FEE,

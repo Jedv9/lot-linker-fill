@@ -34,6 +34,9 @@ for (const row of report) {
   assert.ok(row.filled.includes("bodyStyle"), `${row.label} body style`);
   assert.ok(row.filled.includes("model"), `${row.label} model`);
   assert.ok(row.filled.includes("description"), `${row.label} description`);
+  assert.ok(row.filled.includes("location"), `${row.label} location`);
+  assert.equal(row.location, "Brookfield, Wisconsin");
+  assert.doesNotMatch(row.location, /Oconomowoc/i);
   assert.ok(!row.filled.includes("vin"), `${row.label} must not fill VIN`);
   assert.ok(!row.filled.includes("condition"), `${row.label} must not fill condition`);
   assert.deepEqual(row.missed, []);

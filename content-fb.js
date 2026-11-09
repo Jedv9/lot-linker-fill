@@ -1,4 +1,4 @@
-// Lot Linker Fill — Vehicle type (Car/Truck) first, then Year/Make/Price/Mileage/body/colors/fuel + Model + description + photos.
+// Lot Linker Fill — Vehicle type (Car/Truck) first, then Year/Make/Price/Mileage/body/colors/fuel + Location (Brookfield, Wisconsin) + Model + description + photos.
 // Never VIN. Never clean-title checkbox. Never vehicle condition. Never Post.
 function isMarketplacePath() {
   return /marketplace/i.test(location.pathname + location.href);
@@ -27,6 +27,7 @@ const DESC_EXCLUDE = [
   /title status/,
   /listing title/,
   /item title/,
+  /\blocation\b/,
 ];
 
 const DESC_ATTR_SELECTORS = [
@@ -319,7 +320,8 @@ function isProtectedLabel(lab) {
     /clean title/.test(lab) ||
     /title status/.test(lab) ||
     /vehicle condition/.test(lab) ||
-    /vehicle type/.test(lab)
+    /vehicle type/.test(lab) ||
+    /\blocation\b/.test(lab)
   );
 }
 
@@ -738,6 +740,187 @@ async function fillChoice(matchers, value, exclude = []) {
   return choiceLooksSet(el, value);
 }
 
+const LOCATION_MATCHERS = [
+  /^location$/,
+  /\blisting location\b/,
+  /\bmeetup location\b/,
+  /\blocation\b/,
+];
+const LOCATION_EXCLUDE = [
+  /description/,
+  /tell buyers/,
+  /what makes/,
+  /more details/,
+  /listing title/,
+  /item title/,
+  /\bvin\b/,
+  /vehicle identification/,
+  /clean title/,
+  /title status/,
+  /vehicle condition/,
+  /^condition$/,
+  /\byear\b/,
+  /\bmake\b/,
+  /\bmodel\b/,
+  /\bprice\b/,
+  /\bmileage\b/,
+  /vehicle type/,
+  /body style/,
+  /neighborhood/,
+];
+
+function locationQuery() {
+  if (typeof LotLinkerListing !== "undefined" && LotLinkerListing.LOCATION) {
+    return LotLinkerListing.LOCATION;
+  }
+  return "Brookfield, Wisconsin";
+}
+
+function locationHay(el) {
+  if (!el) return "";
+  const ownText =
+    el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement
+      ? ""
+      : [...el.childNodes]
+          .filter((n) => {
+            if (n.nodeType === 3) return true;
+            const role = n.getAttribute?.("role");
+            return n.nodeType === 1 && role !== "option" && role !== "listbox";
+          })
+          .map((n) => n.textContent)
+          .join(" ");
+  return [readFilled(el), el.dataset?.value, el.getAttribute?.("aria-valuetext"), ownText]
+    .filter(Boolean)
+    .map(shortText)
+    .join(" ");
+}
+
+function locationLooksSet(el) {
+  const hay = locationHay(el);
+  if (!hay) return false;
+  if (/oconomowoc/i.test(hay) && !/\bbrookfield\b/i.test(hay)) return false;
+  return /\bbrookfield\b/i.test(hay) && (/\bwisconsin\b/i.test(hay) || /\bwi\b/i.test(hay));
+}
+
+function locationOptionScore(text) {
+  const t = shortText(text).toLowerCase();
+  if (!t || /oconomowoc/.test(t)) return 0;
+  if (!/\bbrookfield\b/.test(t)) return 0;
+  if (/\bbrookfield,\s*wisconsin\b/.test(t)) return 6;
+  if (/\bbrookfield,\s*wi\b/.test(t)) return 5;
+  if (/\bwisconsin\b/.test(t) || /\bwi\b/.test(t)) return 4;
+  if (/\b(il|illinois|oh|ohio|mo|missouri|in|indiana|ct|connecticut)\b/.test(t)) return 1;
+  return 2;
+}
+
+function pickLocationOption() {
+  const opts = [
+    ...document.querySelectorAll('[role="option"], [role="menuitem"], [role="menuitemradio"], li[role="option"]'),
+  ].filter((o) => !isUnsafeClickTarget(o) && isDisplayed(o));
+  const scored = opts
+    .map((el) => ({ el, score: locationOptionScore(optionText(el)) }))
+    .filter((x) => x.score >= 4)
+    .sort((a, b) => b.score - a.score);
+  const hit = scored[0]?.el;
+  if (!hit) return false;
+  try {
+    hit.click();
+  } catch {
+    return false;
+  }
+  return true;
+}
+
+function clearLocationControl(el) {
+  if (!el) return;
+  if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+    try {
+      el.focus();
+      el.select();
+    } catch {
+      /* ignore */
+    }
+    setNativeValue(el, "");
+    try {
+      el.dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", bubbles: true, cancelable: true }));
+    } catch {
+      /* ignore */
+    }
+    return;
+  }
+  if (el.isContentEditable || el.getAttribute?.("role") === "combobox" || el.getAttribute?.("role") === "textbox") {
+    try {
+      el.textContent = "";
+      if (el.dataset) el.dataset.value = "";
+      el.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, inputType: "deleteContentBackward" }));
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+async function typeLocationQuery(el, query) {
+  const target =
+    (document.activeElement &&
+      (document.activeElement === el || el.contains?.(document.activeElement)) &&
+      document.activeElement) ||
+    el;
+  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target.isContentEditable) {
+    fillMultiline(target, query);
+    return;
+  }
+  const inner = target.querySelector?.("input:not([type=hidden]), textarea, [contenteditable]:not([contenteditable=false])");
+  if (inner) {
+    fillMultiline(inner, query);
+    return;
+  }
+  try {
+    target.textContent = query;
+    if (target.dataset) target.dataset.value = query;
+    target.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, data: query }));
+  } catch {
+    /* ignore */
+  }
+}
+
+async function fillLocation() {
+  const want = locationQuery();
+  const el =
+    findChoiceControl(LOCATION_MATCHERS, LOCATION_EXCLUDE) ||
+    findField(LOCATION_MATCHERS, { exclude: LOCATION_EXCLUDE });
+  if (!el || isUnsafeClickTarget(el) || isOffLimitsControl(el) || isVinLabel(ownLabel(el))) return false;
+  if (locationLooksSet(el) && !/oconomowoc/i.test(locationHay(el))) return true;
+
+  scrollElIntoView(el);
+  try {
+    el.focus();
+  } catch {
+    /* ignore */
+  }
+  try {
+    el.click();
+  } catch {
+    /* ignore */
+  }
+  await delay(180);
+  clearLocationControl(el);
+  const active = document.activeElement;
+  if (active && active !== el) clearLocationControl(active);
+  await delay(80);
+  await typeLocationQuery(el, want);
+  let picked = false;
+  for (const wait of [280, 400, 280]) {
+    await delay(wait);
+    if (pickLocationOption()) {
+      picked = true;
+      await delay(120);
+      break;
+    }
+  }
+  if (picked) return locationLooksSet(el) || true;
+  return locationLooksSet(el) && !/oconomowoc/i.test(locationHay(el));
+}
+
 function controlAfterLabel(node) {
   let sib = node.nextElementSibling;
   for (let i = 0; i < 6 && sib; i++) {
@@ -1143,6 +1326,7 @@ const MODEL_EXCLUDE = [
   /item title/,
   /\bprice\b/,
   /\btrim\b/,
+  /\blocation\b/,
 ];
 
 const CHOICE_EXCLUDE = [
@@ -1158,6 +1342,7 @@ const CHOICE_EXCLUDE = [
   /title status/,
   /vehicle condition/,
   /^condition$/,
+  /\blocation\b/,
 ];
 
 function markIfPresent(mark, key, packHas, ok) {
@@ -1167,7 +1352,8 @@ function markIfPresent(mark, key, packHas, ok) {
 
 async function fillPackOnce(pack) {
   // FIRST Vehicle type = Car/Truck, then Year, Make, Price, Mileage, Body style,
-  // Exterior color, Interior color, Fuel, Model title line, Description.
+  // Exterior color, Interior color, Fuel, Location (Brookfield, Wisconsin),
+  // Model title line, Description.
   // Never VIN. Never clean-title checkbox. Never vehicle condition.
   const p = pack || {};
   const listing = listingFromPack(p);
@@ -1280,6 +1466,8 @@ async function fillPackOnce(pack) {
     )
   );
 
+  mark("location", await fillLocation());
+
   const desc = fillDescription(listing.body);
   mark("description", desc.ok);
 
@@ -1289,7 +1477,7 @@ async function fillPackOnce(pack) {
     modelLine,
     title: listing.title,
     descriptionHit: desc.via || "",
-    notes: "Vehicle type first, then Year/Make/Price/Mileage/body/colors/fuel + Model + description + photos. Never VIN. You hit Post.",
+    notes: "Vehicle type first, then Year/Make/Price/Mileage/body/colors/fuel + Location (Brookfield, Wisconsin) + Model + description + photos. Never VIN. You hit Post.",
   };
 }
 
@@ -1306,7 +1494,7 @@ function mergePhotoResult(textResult, photoResult) {
     filled: [...new Set(filled)],
     missed: [...new Set(missed)],
     photos,
-    notes: "Vehicle type first, then Year/Make/Price/Mileage/body/colors/fuel + Model + description + photos. Never VIN. You hit Post.",
+    notes: "Vehicle type first, then Year/Make/Price/Mileage/body/colors/fuel + Location (Brookfield, Wisconsin) + Model + description + photos. Never VIN. You hit Post.",
   };
 }
 
@@ -1324,6 +1512,7 @@ async function fillPack(pack) {
     "exterior",
     "interior",
     "fuel",
+    "location",
   ].filter((k) => textResult.missed.includes(k));
   if (retryKeys.length) {
     revealDescriptionArea();
@@ -1346,6 +1535,10 @@ if (typeof globalThis !== "undefined") {
     findField,
     findDescriptionField,
     labelText,
+    fillLocation,
+    pickLocationOption,
+    locationLooksSet,
+    locationQuery,
   };
 }
 
