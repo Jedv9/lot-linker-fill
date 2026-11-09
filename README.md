@@ -1,6 +1,6 @@
 # Lot Linker Fill
 
-Chrome MV3 extension for **Lexus of Brookfield** pre-owned inventory (used + L/Certified). Pick a stock number and **Fill** Facebook Marketplace vehicle **Year**, **Make**, **Price**, **Mileage**, **Body style**, **Exterior color**, **Interior color**, **Fuel type**, **Model**, **Description**, and **photos** in one click. You always hit Post. VIN, clean title, and vehicle condition are never touched.
+Chrome MV3 extension for **Lexus of Brookfield** pre-owned inventory (used + L/Certified). Pick a stock number and **Fill** Facebook Marketplace vehicle **Year**, **Make**, **Price**, **Mileage**, **Body style**, **Exterior color**, **Interior color**, **Fuel type**, **Location** (Brookfield, Wisconsin), **Model**, **Description**, and **photos** in one click. You always hit Post. VIN, clean title, and vehicle condition are never touched.
 
 This build is pre-owned only. New Lexus inventory is not loaded. Pre-owned includes other makes on the Brookfield lot, not only Lexus. L/Certified units that appear in pre-owned / certified inventory are included.
 
@@ -16,7 +16,7 @@ This build is pre-owned only. New Lexus inventory is not loaded. Pre-owned inclu
 ## Use
 1. Open Facebook Marketplace → create **vehicle** listing (`/marketplace/create/vehicle` or equivalent)
 2. Open the extension, search by stock / VIN / model — each row shows mileage and price
-3. Click **Fill** (Vehicle type Car/Truck first, then Year, Make, Price, Mileage, body, colors, fuel, Model, description, photos). Fill also marks that stock as listed on Marketplace.
+3. Click **Fill** (Vehicle type Car/Truck first, then Year, Make, Price, Mileage, body, colors, fuel, Location, Model, description, photos). Fill types **Brookfield, Wisconsin** into the Marketplace Location typeahead and picks that suggestion (dealer: 20001 W Bluemound Rd, Brookfield, WI 53045) so the listing is not left on the Facebook profile default city. Fill also marks that stock as listed on Marketplace. Status reports `location` in filled or missed.
 4. You click Post — the extension never publishes
 5. When a listed car leaves the Brookfield site, **Sold — take these down** shows year/make/model/trim, stock, VIN last 6, last advertised total price, and the date it was detected gone. Click **Taken down** after you remove the Facebook listing. The toolbar icon badge is the count still waiting. Use **Listed on Marketplace** on a stock if you listed it without Fill.
 
@@ -72,7 +72,7 @@ If the public listing is blocked, a dealer-provided inventory export/feed (CSV/J
 ```
 bash scripts/build-zip.sh
 ```
-Writes `dist/LotLinker.zip` (use this on Windows), plus `dist/lot-linker-fill-2.5.0.zip` and `dist/lot-linker-fill.zip`. Unzip and Load unpacked on the `lot-linker-fill` folder inside.
+Writes `dist/LotLinker.zip` (use this on Windows), plus `dist/lot-linker-fill-2.5.1.zip` and `dist/lot-linker-fill.zip`. Unzip and Load unpacked on the `lot-linker-fill` folder inside.
 
 ## Tests
 ```
@@ -81,6 +81,6 @@ npm run test:fixtures
 ```
 
 ## Version
-2.5.0
+2.5.1
 
-One-click Fill **first** sets **Vehicle type** to **Car/Truck** (Year/Make/etc. will not take until this is set), then writes **Year**, **Make**, **Price**, **Mileage**, **Body style**, **Exterior color**, **Interior color**, **Fuel type**, **Model** title line, **Description**, and **photos**. **VIN is never written**. Clean title and vehicle condition are never written. Description fill still walks Facebook’s vehicle-create markup. Comboboxes open then click a matching `[role=option]`. Price and Mileage use digits only.
+One-click Fill **first** sets **Vehicle type** to **Car/Truck** (Year/Make/etc. will not take until this is set), then writes **Year**, **Make**, **Price**, **Mileage**, **Body style**, **Exterior color**, **Interior color**, **Fuel type**, **Location** (types Brookfield, Wisconsin and picks that suggestion), **Model** title line, **Description**, and **photos**. **VIN is never written**. Clean title and vehicle condition are never written. Description fill still walks Facebook’s vehicle-create markup. Comboboxes open then click a matching `[role=option]`. Price and Mileage use digits only. Location is retried like the other fields. The extension never clicks Post / Publish / Next.

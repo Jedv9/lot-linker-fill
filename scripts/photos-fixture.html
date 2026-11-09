@@ -8,6 +8,8 @@
     label { display: block; font-weight: 600; margin: 12px 0 4px; }
     input, textarea { width: 100%; box-sizing: border-box; padding: 8px; font: inherit; }
     .drop { border: 2px dashed #94a3b8; padding: 24px; text-align: center; margin: 12px 0; }
+    [role=listbox] { border: 1px solid #cbd5e1; margin: 0 0 8px; }
+    [role=option] { padding: 6px 8px; cursor: pointer; }
     .hidden-file { position: absolute; width: 1px; height: 1px; opacity: 0; }
     #status { color: #0369a1; min-height: 1.2em; }
   </style>
@@ -27,6 +29,10 @@
   <label>Price <input id="price" aria-label="Price" /></label>
   <label>Mileage <input id="mileage" aria-label="Mileage" value="87000" /></label>
   <label>Body style <input id="body-style" aria-label="Body style" /></label>
+  <label>Location
+    <input id="location" aria-label="Location" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" value="Oconomowoc, Wisconsin" />
+    <div id="location-list" role="listbox" hidden></div>
+  </label>
   <label>VIN <input id="vin" aria-label="VIN" value="DO-NOT-TOUCH" /></label>
   <label>Description
     <textarea id="description" aria-label="Description" rows="8"></textarea>
@@ -40,6 +46,33 @@
     document.getElementById("post").addEventListener("click", () => {
       postClicks += 1;
     });
+    (function wireLocationTypeahead() {
+      const input = document.getElementById("location");
+      const list = document.getElementById("location-list");
+      const places = ["Oconomowoc, Wisconsin", "Brookfield, Illinois", "Brookfield, Wisconsin", "Brookfield, Ohio"];
+      function render(q) {
+        const first = String(q || "").toLowerCase().split(",")[0].trim();
+        list.innerHTML = "";
+        places
+          .filter((p) => !first || p.toLowerCase().includes(first))
+          .forEach((v) => {
+            const o = document.createElement("div");
+            o.setAttribute("role", "option");
+            o.textContent = v;
+            o.addEventListener("click", (e) => {
+              e.stopPropagation();
+              input.value = v;
+              input.dataset.value = v;
+              list.hidden = true;
+            });
+            list.appendChild(o);
+          });
+        list.hidden = !list.childElementCount;
+      }
+      input.addEventListener("focus", () => render(input.value));
+      input.addEventListener("click", () => render(input.value));
+      input.addEventListener("input", () => render(input.value));
+    })();
 
     function canvasBlob(draw) {
       const c = document.createElement("canvas");
@@ -102,6 +135,7 @@
       const make = document.getElementById("make").value;
       const price = document.getElementById("price").value;
       const mileage = document.getElementById("mileage").value;
+      const location = document.getElementById("location").value;
       const vin = document.getElementById("vin").value;
 
       const report = {
@@ -122,6 +156,7 @@
         priceOk: price === LotLinkerListing.advertisedPrice(pack) && result.filled.includes("price"),
         vinOk: vin === "DO-NOT-TOUCH" && !result.filled.includes("vin"),
         mileageOk: mileage === "87000" && result.filled.includes("mileage"),
+        locationOk: location === "Brookfield, Wisconsin" && result.filled.includes("location") && !/Oconomowoc/i.test(location),
         postClicks,
         neverPosted: postClicks === 0,
       };
@@ -136,6 +171,7 @@
         report.priceOk &&
         report.vinOk &&
         report.mileageOk &&
+        report.locationOk &&
         report.neverPosted;
 
       document.getElementById("status").textContent = report.ok

@@ -118,6 +118,8 @@ assert.ok(report.filled.includes("price"));
 assert.ok(report.filled.includes("model"));
 assert.ok(report.filled.includes("description"));
 assert.ok(report.filled.includes("photos"));
+assert.ok(report.filled.includes("location"));
+assert.equal(report.locationOk, true);
 assert.ok(!report.filled.includes("vin"));
 assert.equal(report.yearOk, true);
 assert.equal(report.makeOk, true);

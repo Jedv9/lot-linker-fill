@@ -13,7 +13,7 @@ const manifest = JSON.parse(readFileSync(new URL("../manifest.json", import.meta
 const background = readFileSync(new URL("../background.js", import.meta.url), "utf8");
 const zipBuild = readFileSync(new URL("./build-zip.sh", import.meta.url), "utf8");
 
-assert.equal(manifest.version, "2.5.0");
+assert.equal(manifest.version, "2.5.1");
 assert.deepEqual(manifest.content_scripts[0].js, ["listing-copy.js", "photos.js", "content-fb.js"]);
 assert.equal(manifest.background.service_worker, "background.js");
 assert.ok(manifest.permissions.includes("downloads"), "fallback save uses chrome.downloads");
@@ -58,6 +58,11 @@ assert.match(content, /"exterior"/);
 assert.match(content, /"interior"/);
 assert.match(content, /"fuel"/);
 assert.match(content, /"vehicleType"/);
+assert.match(content, /fillLocation/);
+assert.match(content, /Brookfield, Wisconsin/);
+assert.match(content, /"location"/);
+assert.match(content, /pickLocationOption/);
+assert.doesNotMatch(content, /["'`]Oconomowoc/);
 assert.match(content, /Car\/Truck/);
 assert.doesNotMatch(content, /fillText\(\s*\[\s*\/\\bvin\\b/);
 assert.match(content, /isProtectedLabel/);
@@ -93,6 +98,10 @@ assert.match(popup, /res\.missed/);
 assert.match(popup, /pickerLabel|packPickerLabel/);
 assert.match(popup, /savePhotos/);
 assert.doesNotMatch(popup, /storeShort/);
+assert.equal(listing.LOCATION, "Brookfield, Wisconsin");
+assert.doesNotMatch(popup, /Oconomowoc/i);
+assert.doesNotMatch(popupHtml, /Oconomowoc/i);
+assert.doesNotMatch(manifest.description, /Oconomowoc/i);
 
 const cpoListing = listing.fromPack(toPack(cpo));
 assert.ok(cpoListing.body.includes("\n\n"), "description must keep blank lines");
