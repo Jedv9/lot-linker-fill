@@ -197,9 +197,10 @@
       const result = await LotLinkerFill.fillPack(pack);
       const fields = snapshot();
       const listing = LotLinkerListing.packToListing(pack);
+      const advertised = LotLinkerListing.advertisedPrice(pack);
       const yearOk = fields.year === pack.year && result.filled.includes("year");
       const makeOk = fields.make === pack.make && result.filled.includes("make");
-      const priceOk = fields.price === String(pack.price) && result.filled.includes("price");
+      const priceOk = fields.price === String(advertised) && result.filled.includes("price");
       const vinOk = fields.vin === "DO-NOT-TOUCH" && !result.filled.includes("vin");
       const mileageOk = fields.mileage === String(pack.mileage) && result.filled.includes("mileage");
       const titleOk = fields.titleStatus === "Clean" && !fields.cleanTitle && fields.condition === "";

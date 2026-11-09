@@ -37,7 +37,7 @@ function assertLayout(body) {
   assert.equal(lines[i + 4], "");
   assert.equal(
     lines[i + 5],
-    "Advertised price excludes applicable taxes, title, registration, dealer fees, and other charges. Equipment, pricing, and availability subject to verification. See dealer for complete details."
+    "Advertised price is the dealer Total Sale Price (vehicle price plus $479 service fee and $38 filing fee). It excludes applicable taxes, title, registration, and other charges. Equipment, pricing, and availability subject to verification. See dealer for complete details."
   );
 }
 
@@ -64,21 +64,21 @@ const raptorPack = {
 
 assert.equal(
   listing.pickerLabel(raptorPack),
-  "PU1392 · 2012 Ford F-150 SVT Raptor · 109,782 mi · $26,900"
+  "PU1392 · 2012 Ford F-150 SVT Raptor · 109,782 mi · $27,417"
 );
 assert.equal(listing.mileageLabel(raptorPack), "109,782 mi");
 assert.equal(
   listing.buildModelLine(raptorPack),
-  "F-150 SVT Raptor | 4WD | $26,900 | Brookfield WI"
+  "F-150 SVT Raptor | 4WD | $27,417 | Brookfield WI"
 );
 assert.doesNotMatch(listing.buildModelLine(raptorPack), /2012|Ford/);
 assert.equal(
   listing.buildTitle(raptorPack),
-  "2012 Ford F-150 SVT Raptor | 4WD | $26,900 | Brookfield WI"
+  "2012 Ford F-150 SVT Raptor | 4WD | $27,417 | Brookfield WI"
 );
 const raptorListing = listing.packToListing(raptorPack);
-assert.equal(raptorListing.modelLine, "F-150 SVT Raptor | 4WD | $26,900 | Brookfield WI");
-assert.match(raptorListing.body, /Wisconsin shoppers looking for a truck under \$26,900:/);
+assert.equal(raptorListing.modelLine, "F-150 SVT Raptor | 4WD | $27,417 | Brookfield WI");
+assert.match(raptorListing.body, /Wisconsin shoppers looking for a truck under \$27,417:/);
 assert.match(raptorListing.body, /2012 Ford F-150 is available at Lexus of Brookfield/);
 assert.doesNotMatch(raptorListing.body, /Boucher|Lake Country|Oconomowoc/);
 assert.ok(raptorListing.body.includes("\n\n"), "description must keep blank lines");
@@ -95,12 +95,12 @@ cpoPack.features = [
 const cpoListing = listing.fromPack(cpoPack);
 assert.equal(
   listing.pickerLabel(cpoPack),
-  "PMT3253 · 2024 Lexus NX 350 Premium · 17,009 mi · $43,999"
+  "PMT3253 · 2024 Lexus NX 350 Premium · 17,009 mi · $44,516"
 );
 assert.doesNotMatch(listing.mileageLabel(cpoPack), /NEW/);
-assert.equal(cpoListing.modelLine, "NX 350 Premium | AWD | $43,999 | Brookfield WI");
+assert.equal(cpoListing.modelLine, "NX 350 Premium | AWD | $44,516 | Brookfield WI");
 assert.doesNotMatch(cpoListing.modelLine, /2024|Lexus/);
-assert.equal(cpoListing.title, "2024 Lexus NX 350 Premium | AWD | $43,999 | Brookfield WI");
+assert.equal(cpoListing.title, "2024 Lexus NX 350 Premium | AWD | $44,516 | Brookfield WI");
 assert.match(cpoListing.body, /L\/Certified Pre-Owned/);
 assert.match(cpoListing.body, /Lexus of Brookfield in Brookfield, Wisconsin/);
 assert.ok(listing.keyEquipment(cpoPack).length >= 3);
@@ -123,7 +123,7 @@ const usedMulti = listing.fromPack({
   vdpUrl: "https://www.lexusofbrookfield.com/used/Genesis/2024-Genesis-GV80-82754bd9ac180097404c2aaa144db3e4.htm",
   features: ["Heated & Ventilated Front Bucket Seats", "Apple CarPlay", "Android Auto", "Surround View Monitor", "Leather Seats"],
 });
-assert.equal(usedMulti.modelLine, "GV80 3.5T | AWD | $45,507 | Brookfield WI");
+assert.equal(usedMulti.modelLine, "GV80 3.5T | AWD | $46,024 | Brookfield WI");
 assert.doesNotMatch(usedMulti.body, /L\/Certified Pre-Owned/);
 assert.match(usedMulti.body, /2024 Genesis GV80 is available at Lexus of Brookfield/);
 assertLayout(usedMulti.body);

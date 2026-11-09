@@ -13,6 +13,9 @@
   const CITY = "Brookfield";
   const CITY_TITLE = "Brookfield WI";
   const STORE = "Lexus of Brookfield";
+  const SERVICE_FEE = 479;
+  const FILING_FEE = 38;
+  const DEALER_FEES = SERVICE_FEE + FILING_FEE;
   const OLD_DEALER_RE =
     /nissanlakecountry|hyundailakecountry|\bboucher\b|lake country nissan|lake country hyundai|oconomowoc/i;
   const CURRENT_DEALER_RE = /lexus of brookfield|lexusofbrookfield/i;
@@ -29,10 +32,62 @@
     return Boolean(s) && !PLACEHOLDER_RE.test(s);
   }
 
+  function money(v) {
+    const n = Number(String(v ?? "").replace(/[^\d.]/g, ""));
+    return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
+  }
+
   function formatPrice(price) {
-    const n = Number(String(price ?? "").replace(/[^\d.]/g, ""));
-    if (!Number.isFinite(n)) return "0";
-    return Math.round(n).toLocaleString("en-US");
+    const n = money(price);
+    return n ? n.toLocaleString("en-US") : "0";
+  }
+
+  function stampDealerFees(pack, base, total) {
+    return {
+      ...(pack || {}),
+      basePrice: String(base),
+      serviceFee: String(SERVICE_FEE),
+      filingFee: String(FILING_FEE),
+      dealerFees: String(DEALER_FEES),
+      price: String(total),
+      priceIncludesDealerFees: true,
+    };
+  }
+
+  function withDealerFees(pack) {
+    const p = pack && typeof pack === "object" ? pack : {};
+    const flagged = p.priceIncludesDealerFees === true || p.priceIncludesDealerFees === "true";
+    let base = money(p.basePrice);
+    let total = money(p.price);
+    const siteAsking = money(p.askingPrice);
+    const siteTotal = money(p.totalSalePrice || p.internetPrice);
+
+    if (flagged && base) {
+      return stampDealerFees(p, base, base + DEALER_FEES);
+    }
+    if (flagged && total) {
+      const inferred = total - DEALER_FEES;
+      if (inferred > 0) return stampDealerFees(p, inferred, total);
+    }
+    if (base) return stampDealerFees(p, base, base + DEALER_FEES);
+    if (siteAsking && siteTotal === siteAsking + DEALER_FEES) {
+      return stampDealerFees(p, siteAsking, siteTotal);
+    }
+    if (siteAsking) return stampDealerFees(p, siteAsking, siteAsking + DEALER_FEES);
+    if (siteTotal) {
+      const inferred = siteTotal - DEALER_FEES;
+      if (inferred > 0) return stampDealerFees(p, inferred, siteTotal);
+    }
+    if (!total) return { ...p };
+    return stampDealerFees(p, total, total + DEALER_FEES);
+  }
+
+  function advertisedPrice(pack) {
+    return withDealerFees(pack).price || "";
+  }
+
+  function advertisedPack(pack) {
+    return withDealerFees(pack);
   }
 
   function formatMileage(pack) {
@@ -50,7 +105,7 @@
   }
 
   function pickerLabel(pack) {
-    const p = pack || {};
+    const p = advertisedPack(pack);
     const name = [p.year, p.make, p.model, p.trim].map(text).filter(Boolean).join(" ");
     return [text(p.stock), name, mileageLabel(p), `$${formatPrice(p.price)}`].filter(Boolean).join(" · ");
   }
@@ -411,9 +466,10 @@
   }
 
   function buildTitle(pack) {
-    const name = [pack.year, pack.make, pack.model, pack.trim].map(text).filter(Boolean).join(" ");
-    const spec = keySpec(pack);
-    const price = formatPrice(pack.price);
+    const p = advertisedPack(pack);
+    const name = [p.year, p.make, p.model, p.trim].map(text).filter(Boolean).join(" ");
+    const spec = keySpec(p);
+    const price = formatPrice(p.price);
     const parts = [name];
     if (spec) parts.push(spec);
     parts.push(`$${price}`);
@@ -423,9 +479,10 @@
 
   // Facebook vehicle create: Year/Make are already chosen. Model is a text field.
   function buildModelLine(pack) {
-    const name = [pack.model, pack.trim].map(text).filter(Boolean).join(" ");
-    const spec = keySpec(pack);
-    const price = formatPrice(pack.price);
+    const p = advertisedPack(pack);
+    const name = [p.model, p.trim].map(text).filter(Boolean).join(" ");
+    const spec = keySpec(p);
+    const price = formatPrice(p.price);
     const parts = [];
     if (name) parts.push(name);
     if (spec) parts.push(spec);
@@ -435,17 +492,18 @@
   }
 
   function buildDescription(pack) {
-    const type = vehicleType(pack);
-    const price = formatPrice(pack.price);
-    const ymm = [pack.year, pack.make, pack.model].map(text).filter(Boolean).join(" ");
-    const store = storeName(pack);
-    const ymmLine = isCertified(pack)
+    const p = advertisedPack(pack);
+    const type = vehicleType(p);
+    const price = formatPrice(p.price);
+    const ymm = [p.year, p.make, p.model].map(text).filter(Boolean).join(" ");
+    const store = storeName(p);
+    const ymmLine = isCertified(p)
       ? `${ymm} (L/Certified Pre-Owned) is available at ${store} in ${CITY}, Wisconsin.`
       : `${ymm} is available at ${store} in ${CITY}, Wisconsin.`;
-    const miles = formatMileage(pack);
-    const stock = text(pack.stock);
-    const features = keyEquipment(pack);
-    const modelMsg = shortModel(pack.model);
+    const miles = formatMileage(p);
+    const stock = text(p.stock);
+    const features = keyEquipment(p);
+    const modelMsg = shortModel(p.model);
     const featureLines = features.map((f) => `• ${f}`).join("\n");
     const equipmentBlock = features.length ? `Key equipment:\n${featureLines}` : "Key equipment:";
 
@@ -464,12 +522,12 @@
       "",
       "Trade-ins welcome. Financing available for qualified buyers.",
       "",
-      "Advertised price excludes applicable taxes, title, registration, dealer fees, and other charges. Equipment, pricing, and availability subject to verification. See dealer for complete details.",
+      "Advertised price is the dealer Total Sale Price (vehicle price plus $479 service fee and $38 filing fee). It excludes applicable taxes, title, registration, and other charges. Equipment, pricing, and availability subject to verification. See dealer for complete details.",
     ].join("\n");
   }
 
   function fromPack(pack) {
-    const p = pack || {};
+    const p = advertisedPack(pack);
     return {
       title: buildTitle(p),
       modelLine: buildModelLine(p),
@@ -483,6 +541,13 @@
     CITY,
     CITY_TITLE,
     STORE,
+    SERVICE_FEE,
+    FILING_FEE,
+    DEALER_FEES,
+    money,
+    withDealerFees,
+    advertisedPrice,
+    advertisedPack,
     buildTitle,
     buildModelLine,
     buildDescription,

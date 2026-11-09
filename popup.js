@@ -40,13 +40,27 @@ function currentDealerPacks(list) {
   return rows.filter((p) => /lexus of brookfield|lexusofbrookfield/i.test([p?.rooftop, p?.vdpUrl].join(" ")));
 }
 
+function withDealerFees(pack) {
+  if (typeof LotLinkerListing !== "undefined" && LotLinkerListing.withDealerFees) {
+    return LotLinkerListing.withDealerFees(pack);
+  }
+  return pack;
+}
+
+function normalizePacks(list) {
+  return currentDealerPacks(list).map(withDealerFees);
+}
+
 async function loadBundled() {
   const res = await fetch(chrome.runtime.getURL("packs.json"));
   const data = await res.json();
-  const bundled = currentDealerPacks(data.packs || []);
+  const bundled = normalizePacks(data.packs || []);
   const stored = await chrome.storage.local.get(["packsOverride", "packsRefreshedAt"]);
-  const override = currentDealerPacks(stored.packsOverride);
+  const override = normalizePacks(stored.packsOverride);
   packs = override.length ? override : bundled;
+  if (override.length) {
+    await chrome.storage.local.set({ packsOverride: override });
+  }
   fillStoreFilter();
   renderList();
   showRefreshMeta(override.length ? stored.packsRefreshedAt : "");
@@ -176,7 +190,7 @@ $("fill").onclick = async () => {
     return status("Open a facebook.com Marketplace create tab first");
   }
   try {
-    const pack = await ensureResearched(selected);
+    const pack = withDealerFees(await ensureResearched(selected));
     selected = pack;
     renderListing(pack);
     const res = await chrome.tabs.sendMessage(tab.id, { type: "LOT_LINKER_FILL", pack });
@@ -212,7 +226,7 @@ $("refreshInventory").onclick = async () => {
       return;
     }
     const data = await res.json();
-    const remote = currentDealerPacks(Array.isArray(data) ? data : (data.packs || []));
+    const remote = normalizePacks(Array.isArray(data) ? data : (data.packs || []));
     if (!remote.length) {
       status("Refresh failed: no Lexus of Brookfield pre-owned packs in remote JSON");
       return;

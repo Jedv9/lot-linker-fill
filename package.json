@@ -3,7 +3,7 @@
   "private": true,
   "description": "Weekly scraper that rebuilds packs.json for the Lot Linker Fill extension (Lexus of Brookfield pre-owned).",
   "scripts": {
-    "test": "node scripts/test-listing-copy.mjs && node scripts/test-photos.mjs && node scripts/test-picker-label.mjs && node scripts/test-content-fill.mjs && node scripts/test-dealer-migration.mjs && node scripts/test-inventory-collection.mjs",
+    "test": "node scripts/test-listing-copy.mjs && node scripts/test-photos.mjs && node scripts/test-picker-label.mjs && node scripts/test-content-fill.mjs && node scripts/test-dealer-migration.mjs && node scripts/test-inventory-collection.mjs && node scripts/test-total-sale-price.mjs",
     "test:fixtures": "node scripts/test-vehicle-fixture.mjs && node scripts/test-photos-fixture.mjs",
     "scrape": "node scripts/scrape-inventory.mjs"
   },

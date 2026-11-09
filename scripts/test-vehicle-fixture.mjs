@@ -46,10 +46,10 @@ for (const row of report) {
   assert.equal(row.condition, "");
   assert.equal(row.vin, "DO-NOT-TOUCH");
   if (row.label === "Raptor") {
-    assert.equal(row.model, "F-150 SVT Raptor | 4WD | $26,900 | Brookfield WI");
+    assert.equal(row.model, "F-150 SVT Raptor | 4WD | $27,417 | Brookfield WI");
     assert.equal(row.year, "2012");
     assert.equal(row.make, "Ford");
-    assert.equal(row.price, "26900");
+    assert.equal(row.price, "27417");
     assert.equal(row.mileage, "87000");
     assert.equal(row.bodyStyle, "Truck");
     assert.equal(row.exterior, "Black");
@@ -59,13 +59,13 @@ for (const row of report) {
   if (row.label === "CPO") {
     assert.equal(row.year, "2024");
     assert.equal(row.make, "Lexus");
-    assert.equal(row.price, "43999");
+    assert.equal(row.price, "44516");
     assert.equal(row.mileage, "17009");
     assert.equal(row.bodyStyle, "SUV");
     assert.ok(["Black", "Grey", "Gray"].includes(row.exterior), `${row.label} exterior ${row.exterior}`);
     assert.ok(["Brown", "Tan", "Beige", ""].includes(row.interior), `${row.label} interior ${row.interior}`);
     assert.equal(row.fuel, "Gasoline");
-    assert.match(row.model, /NX 350 Premium \| AWD \| \$43,999 \| Brookfield WI/);
+    assert.match(row.model, /NX 350 Premium \| AWD \| \$44,516 \| Brookfield WI/);
   }
 }
 
