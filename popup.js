@@ -48,14 +48,43 @@ function currentDealerPacks(list) {
 }
 
 function withDealerFees(pack) {
-  if (typeof LotLinkerListing !== "undefined" && LotLinkerListing.withDealerFees) {
-    return LotLinkerListing.withDealerFees(pack);
+  if (typeof LotLinkerListing !== "undefined" && LotLinkerListing.advertisedPack) {
+    return LotLinkerListing.advertisedPack(pack);
   }
   return pack;
 }
 
 function normalizePacks(list) {
   return currentDealerPacks(list).map(withDealerFees);
+}
+
+async function overlayVdpTotals(list) {
+  if (typeof LotLinkerVdpPrice === "undefined" || !LotLinkerVdpPrice.overlayLiveTotals) {
+    return { packs: list, found: 0, missing: list.length };
+  }
+  return LotLinkerVdpPrice.overlayLiveTotals(list, {
+    fetchFn: async (url) => {
+      for (let attempt = 0; attempt < 6; attempt++) {
+        const res = await fetch(url, {
+          credentials: "omit",
+          headers: { accept: "text/html,application/xhtml+xml" },
+        });
+        if (res.status === 429 || res.status === 503) {
+          const ra = Number(res.headers.get("retry-after") || 0);
+          const wait = ra > 0 ? ra * 1000 : 8000 * 2 ** attempt;
+          await new Promise((r) => setTimeout(r, Math.min(wait, 60000)));
+          continue;
+        }
+        if (!res.ok) return "";
+        return res.text();
+      }
+      return "";
+    },
+    onProgress: ({ i, total, stock }) => {
+      status(`Reading live Total Sale Price ${i + 1}/${total}${stock ? ` · ${stock}` : ""}`);
+    },
+    gapMs: 1200,
+  });
 }
 
 function payloadMeta(data) {
@@ -302,6 +331,11 @@ function renderListing(pack) {
   const photos = $("mPhotos");
   if (photos) photos.textContent = photoMetaText(pack);
   $("mBody").textContent = listing.body;
+  const priceWarn = $("priceWarn");
+  if (priceWarn) {
+    const missing = pack?.priceMissing || !listingFor(pack) || (typeof LotLinkerListing !== "undefined" && !LotLinkerListing.advertisedPrice(pack));
+    priceWarn.hidden = !missing;
+  }
   const listed = $("listedOnFb");
   if (listed) {
     const api = soldApi();
@@ -373,6 +407,9 @@ $("fill").onclick = async () => {
   }
   try {
     const pack = withDealerFees(await ensureResearched(selected));
+    if (pack.priceMissing || !(typeof LotLinkerListing !== "undefined" && LotLinkerListing.advertisedPrice(pack))) {
+      status("Total Sale Price missing on dealer site — not filling a computed price");
+    }
     selected = pack;
     renderListing(pack);
     const res = await chrome.tabs.sendMessage(tab.id, { type: "LOT_LINKER_FILL", pack });
@@ -411,7 +448,7 @@ $("refreshInventory").onclick = async () => {
       return;
     }
     const data = await res.json();
-    const remote = normalizePacks(Array.isArray(data) ? data : (data.packs || []));
+    const remote = currentDealerPacks(Array.isArray(data) ? data : (data.packs || []));
     if (!remote.length) {
       status("Refresh failed: no Lexus of Brookfield pre-owned packs in remote JSON");
       return;
@@ -428,8 +465,10 @@ $("refreshInventory").onclick = async () => {
       status("Refresh skipped: remote packs look incomplete (not treating as mass sold)");
       return;
     }
+    status(`Reading live Total Sale Price for ${remote.length} vehicles…`);
+    const overlay = await overlayVdpTotals(remote);
     const previousPacks = packs;
-    packs = remote;
+    packs = overlay.packs;
     const at = new Date().toISOString();
     await persistSoldState({
       previousPacks,
@@ -451,7 +490,9 @@ $("refreshInventory").onclick = async () => {
     }
     showRefreshMeta(at);
     const gone = soldApi()?.undismissedCount(soldWatch, soldDismissed) || 0;
-    status(`Refreshed ${packs.length} packs · ${new Date(at).toLocaleString()}${gone ? ` · ${gone} sold to take down` : ""}`);
+    const missing = overlay.missing ? ` · ${overlay.missing} missing Total Sale Price` : "";
+    const goneBit = gone ? ` · ${gone} sold to take down` : "";
+    status(`Refreshed ${packs.length} packs · ${overlay.found} live Total Sale Price${missing} · ${new Date(at).toLocaleString()}${goneBit}`);
   } catch (e) {
     status(`Refresh failed: network error (${e?.message || e})`);
   }

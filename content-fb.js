@@ -1397,17 +1397,19 @@ async function fillPackOnce(pack) {
   );
 
   const price = priceDigits(p);
-  markIfPresent(
-    mark,
-    "price",
-    Boolean(price),
-    fillText(
-      [/^price$/, /\bprice\b/, /asking price/, /listing price/],
-      price,
-      [/mileage/, /odometer/, /description/, /\bmodel\b/, /year/, /make/, /\bvin\b/],
-      "single"
-    )
-  );
+  if (p.priceMissing || !price) {
+    mark("price", false);
+  } else {
+    mark(
+      "price",
+      fillText(
+        [/^price$/, /\bprice\b/, /asking price/, /listing price/],
+        price,
+        [/mileage/, /odometer/, /description/, /\bmodel\b/, /year/, /make/, /\bvin\b/],
+        "single"
+      )
+    );
+  }
 
   const miles = mileageDigits(p);
   markIfPresent(

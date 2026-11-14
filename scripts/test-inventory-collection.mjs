@@ -77,6 +77,7 @@ assert.equal(isRetryableHttp(503, "Too Many Requests"), true);
 assert.match(scraper, /Retry-After/);
 assert.match(scraper, /shouldWritePacks/);
 assert.match(scraper, /soldHistory/);
+assert.match(scraper, /overlayLiveTotals/);
 assert.match(scraper, /buildSoldSnapshot/);
 assert.ok(scraper.indexOf("if (!gate.write)") < scraper.indexOf("buildSoldSnapshot"));
 assert.match(scraper, /start=/);

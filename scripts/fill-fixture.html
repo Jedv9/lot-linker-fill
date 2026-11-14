@@ -120,6 +120,7 @@
     </div>
   </div>
 
+  <script src="../vdp-price.js"></script>
   <script src="../listing-copy.js?v=model-line"></script>
   <script src="../photos.js"></script>
   <script src="../content-fb.js"></script>
@@ -263,8 +264,8 @@
       return { label, ok, result, fields, listing };
     }
 
-    const raptor = {"stock":"PU1392","year":"2012","make":"Ford","model":"F-150","trim":"SVT Raptor","bodyStyle":"Crew Cab 4D","mileage":"87000","vin":"1FTWX1R64CFA00000","condition":"USED","exterior":"Black","interior":"Black","fuel":"Gasoline","drivetrain":"4WD","price":"26900","rooftop":"Lexus of Brookfield","body":"USED 2012 Ford F-150 SVT Raptor · 4WD. Located at Lexus of Brookfield. Stock PU1392, 87,000 miles. Standouts: Heated Seats · Backup Camera · 4WD."};
-    const cpo = {"stock":"PMT3253","year":"2024","make":"Lexus","model":"NX","trim":"350 Premium","bodyStyle":"SUV","mileage":"17009","vin":"2T2GGCEZ9RC048310","condition":"CPO","certified":true,"exterior":"Caviar","exteriorFb":"Black","interior":"Hazel","interiorFb":"Brown","fuel":"Gasoline","drivetrain":"AWD","price":"43999","rooftop":"Lexus of Brookfield","features":["Heated & Ventilated Seats","Wireless Apple CarPlay/Wireless Android Auto","Power driver seat"]};
+    const raptor = {"stock":"PU1392","year":"2012","make":"Ford","model":"F-150","trim":"SVT Raptor","bodyStyle":"Crew Cab 4D","mileage":"87000","vin":"1FTWX1R64CFA00000","condition":"USED","exterior":"Black","interior":"Black","fuel":"Gasoline","drivetrain":"4WD","price":"27417","totalSalePrice":"27417","priceSource":"vdp-total","rooftop":"Lexus of Brookfield","body":"USED 2012 Ford F-150 SVT Raptor · 4WD. Located at Lexus of Brookfield. Stock PU1392, 87,000 miles. Standouts: Heated Seats · Backup Camera · 4WD."};
+    const cpo = {"stock":"PMT3253","year":"2024","make":"Lexus","model":"NX","trim":"350 Premium","bodyStyle":"SUV","mileage":"17009","vin":"2T2GGCEZ9RC048310","condition":"CPO","certified":true,"exterior":"Caviar","exteriorFb":"Black","interior":"Hazel","interiorFb":"Brown","fuel":"Gasoline","drivetrain":"AWD","price":"44516","totalSalePrice":"44516","priceSource":"vdp-total","rooftop":"Lexus of Brookfield","features":["Heated & Ventilated Seats","Wireless Apple CarPlay/Wireless Android Auto","Power driver seat"]};
     document.getElementById("fillRaptor").onclick = () => runFill(raptor, "Raptor", { mileage: "87000" });
     document.getElementById("fillCpo").onclick = () => runFill(cpo, "CPO", { mileage: "17009" });
 

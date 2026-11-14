@@ -10,7 +10,7 @@ const cpo = JSON.parse(readFileSync(new URL("./fixtures/cpo-vehicle.json", impor
 
 assert.ok(packs.length >= 10, `expected bundled pre-owned inventory, got ${packs.length}`);
 
-const labelRe = / · (NEW|\d{1,3}(?:,\d{3})* mi) · \$[\d,]+$/;
+const labelRe = / · (NEW|\d{1,3}(?:,\d{3})* mi) · (\$[\d,]+|PRICE MISSING)$/;
 
 for (const pack of packs) {
   const label = listing.pickerLabel(pack);
@@ -18,7 +18,7 @@ for (const pack of packs) {
   assert.match(label, new RegExp(`^${pack.stock} · `));
   assert.match(label, new RegExp(String(pack.year)));
   assert.match(label, new RegExp(String(pack.make)));
-  assert.match(label, /\$/);
+  assert.match(label, /\$|PRICE MISSING/);
   assert.doesNotMatch(label, /Boucher|Lake Country|Oconomowoc/);
   assert.notEqual(String(pack.condition).toUpperCase(), "NEW");
 }
@@ -38,7 +38,7 @@ assert.equal(
     price: "26900",
     rooftop: "Lexus of Brookfield",
   }),
-  "PU1392 · 2012 Ford F-150 SVT Raptor · 109,782 mi · $27,417"
+  "PU1392 · 2012 Ford F-150 SVT Raptor · 109,782 mi · PRICE MISSING"
 );
 
 console.log(`picker labels ok · ${packs.length} packs`);

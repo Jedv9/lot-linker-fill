@@ -1,6 +1,6 @@
 // Lot Linker Fill — fetch + banner-strip photos off the Facebook page (no Referer).
 // Never downloads. Never posts. Content script places File objects on the picker.
-importScripts("sold-watch.js", "photos.js");
+importScripts("vdp-price.js", "sold-watch.js", "photos.js");
 
 function refreshSoldBadge() {
   const api = self.LotLinkerSold;

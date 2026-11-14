@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Lot Linker Fill",
-  "version": "2.5.1",
+  "version": "2.6.0",
   "description": "Lexus of Brookfield pre-owned. Fill Marketplace Vehicle type (Car/Truck) first, then Year, Make, Price, Mileage, body, colors, fuel, Location (Brookfield, Wisconsin), Model, description, photos. Never VIN. You hit Post.",
   "action": {
     "default_popup": "popup.html",
@@ -45,6 +45,7 @@
         "https://facebook.com/*"
       ],
       "js": [
+        "vdp-price.js",
         "listing-copy.js",
         "photos.js",
         "content-fb.js"

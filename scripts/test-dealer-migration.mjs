@@ -155,7 +155,7 @@ assert.deepEqual(
   ["PMT3253"]
 );
 
-assert.equal(manifest.version, "2.5.1");
+assert.equal(manifest.version, "2.6.0");
 assert.ok(manifest.host_permissions.some((h) => /lexusofbrookfield\.com/.test(h)));
 assert.ok(manifest.host_permissions.some((h) => /pictures\.dealer\.com/.test(h)));
 assert.ok(!manifest.host_permissions.some((h) => /nissanlakecountry|hyundailakecountry|boucher\.com/.test(h)));
@@ -188,7 +188,10 @@ for (const p of packsDoc.packs) {
   assert.doesNotMatch(p.vdpUrl || "", /\/new\/|\/electric-new\//);
   assert.doesNotMatch(p.vdpUrl || "", /nissanlakecountry|hyundailakecountry/);
   assert.match(p.vdpUrl || "", /lexusofbrookfield\.com/);
-  assert.ok(Number(p.price) > 0, `missing price ${p.stock}`);
+  if (!p.priceMissing) {
+    assert.ok(Number(p.price) > 0, `missing price ${p.stock}`);
+    assert.equal(String(p.price), String(p.totalSalePrice || p.price));
+  }
   if (p.certified || /cpo|certified/i.test(p.condition)) {
     assert.match(listing.buildDescription(p), /L\/Certified Pre-Owned/);
   }
@@ -214,7 +217,9 @@ const generic = listing.fromPack({
   mileage: "87000",
   condition: "USED",
   drivetrain: "4WD",
-  price: "26900",
+  price: "27417",
+  totalSalePrice: "27417",
+  priceSource: "vdp-total",
   rooftop: "Lexus of Brookfield",
   vdpUrl: "https://www.lexusofbrookfield.com/used/Ford/2012-Ford-F-150.htm",
   features: ["Heated Seats", "Backup Camera", "4WD"],

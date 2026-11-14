@@ -25,6 +25,7 @@ import {
   vehiclesFromListingHtml,
 } from "./dealer-inventory.mjs";
 import { header, isRetryableHttp, retryDelayMs } from "./http-retry.mjs";
+import { overlayLiveTotals } from "./refresh-vdp-prices.mjs";
 
 const require = createRequire(import.meta.url);
 const soldWatch = require("../sold-watch.js");
@@ -304,6 +305,10 @@ async function main() {
   }
   await browser.close();
 
+  const priced = await overlayLiveTotals(packs);
+  packs.splice(0, packs.length, ...priced.packs);
+  console.log(`VDP Total Sale Price overlay: ${priced.found} found, ${priced.missing} missing`);
+
   const generatedAt = new Date().toISOString();
   const snapshot = soldWatch.buildSoldSnapshot({
     previousPacks: previous.packs || [],
@@ -331,6 +336,9 @@ async function main() {
     soldSinceLast: sold.length,
     sold,
     soldHistory,
+    priceNote: "price is the live VDP Total Sale Price; never computed as asking + fees",
+    vdpPriceFound: priced.found,
+    vdpPriceMissing: priced.missing,
     packs,
   };
   fs.writeFileSync("packs.json", JSON.stringify(out));

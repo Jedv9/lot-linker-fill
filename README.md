@@ -27,7 +27,7 @@ Model line and description are generated at fill time from pack fields (`year`, 
 ## Model line (Facebook vehicle create)
 `{Model} {Trim} | {engine or drivetrain or body} | ${price} | Brookfield WI`
 
-Example: `NX 350 Premium | AWD | $44,516 | Brookfield WI` — no year, no make in this string. Year and Make are filled in their own dropdowns. Price field gets digits only (`44516`), not `$44,516`. Advertised price is the dealer **Total Sale Price**: vehicle price plus the confirmed $479 service fee and $38 filing fee ($517). Sales tax, title, and registration are not added.
+Example: `NX 350 Premium | AWD | $44,516 | Brookfield WI` — no year, no make in this string. Year and Make are filled in their own dropdowns. Price field gets digits only (`44516`), not `$44,516`. Advertised price is the exact **Total Sale Price** shown on that car’s Lexus of Brookfield VDP (that number already includes the $479 service fee and $38 filing fee). Refresh does not add $479 + $38 to another field. Sales tax, title, and registration are not added.
 
 ## Title
 Still built as `{Year} {Make} {Model} {Trim} | {engine or drivetrain or body} | ${price} | Brookfield WI` for preview / other use. Vehicle listings do not have a Title field.
@@ -45,7 +45,7 @@ The service worker does the fetch so Facebook is not sent as `Referer`. Host per
 Facebook caveats: the picker is often a hidden file input behind “Add photos”. Marketplace may cap how many images stick; extras are dropped by FB, not posted. If the composer has not reached the vehicle photo step, Fill reports a missed photo picker — stay on create/vehicle and retry.
 
 ## Packs
-Bundled `packs.json` loads on open. **Refresh packs** pulls the latest `packs.json` from this repo (optional `chrome.storage` override). Packs from the old Lake Country rooftops are ignored so they cannot silently replace Brookfield inventory. Refresh also compares the stock numbers the extension had stored before against the new file and adds anything that vanished to the sold list (even if `packs.json` `sold` missed it). Incomplete remotes are skipped so a partial pull is never treated as a mass sale.
+Bundled `packs.json` loads on open. **Refresh packs** pulls the latest `packs.json` from this repo (optional `chrome.storage` override), then reads each vehicle’s **Total Sale Price** from its live Lexus of Brookfield VDP and overwrites the stored Marketplace price with that exact number. It does **not** add $479 + $38 to another field. If Total Sale Price cannot be found, that stock is flagged (`PRICE MISSING`) and Fill will not write a computed price. Packs from the old Lake Country rooftops are ignored so they cannot silently replace Brookfield inventory. Refresh also compares the stock numbers the extension had stored before against the new file and adds anything that vanished to the sold list (even if `packs.json` `sold` missed it). Incomplete remotes are skipped so a partial pull is never treated as a mass sale.
 
 `packs.json` keeps a rolling `soldHistory` (about 60 days, with `detectedAt`) plus the last-run `sold` / `soldSinceLast` lists. The popup keeps undismissed rows in `chrome.storage` until Jed clicks **Taken down**.
 
@@ -72,7 +72,7 @@ If the public listing is blocked, a dealer-provided inventory export/feed (CSV/J
 ```
 bash scripts/build-zip.sh
 ```
-Writes `dist/LotLinker.zip` (use this on Windows), plus `dist/lot-linker-fill-2.5.1.zip` and `dist/lot-linker-fill.zip`. Unzip and Load unpacked on the `lot-linker-fill` folder inside.
+Writes `dist/LotLinker.zip` (use this on Windows), plus `dist/lot-linker-fill-2.6.0.zip` and `dist/lot-linker-fill.zip`. Unzip and Load unpacked on the `lot-linker-fill` folder inside.
 
 ## Tests
 ```
@@ -81,6 +81,6 @@ npm run test:fixtures
 ```
 
 ## Version
-2.5.1
+2.6.0
 
 One-click Fill **first** sets **Vehicle type** to **Car/Truck** (Year/Make/etc. will not take until this is set), then writes **Year**, **Make**, **Price**, **Mileage**, **Body style**, **Exterior color**, **Interior color**, **Fuel type**, **Location** (types Brookfield, Wisconsin and picks that suggestion), **Model** title line, **Description**, and **photos**. **VIN is never written**. Clean title and vehicle condition are never written. Description fill still walks Facebook’s vehicle-create markup. Comboboxes open then click a matching `[role=option]`. Price and Mileage use digits only. Location is retried like the other fields. The extension never clicks Post / Publish / Next.
