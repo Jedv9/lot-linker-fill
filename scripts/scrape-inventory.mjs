@@ -29,6 +29,7 @@ import { overlayLiveTotals } from "./refresh-vdp-prices.mjs";
 
 const require = createRequire(import.meta.url);
 const soldWatch = require("../sold-watch.js");
+const photos = require("../photos.js");
 
 const PAGE_SIZE = 24;
 const SUCCESS_GAP_MS = 8000;
@@ -290,7 +291,7 @@ async function main() {
     process.exit(2);
   }
 
-  const packs = vehicles.map(toPack);
+  const packs = photos.dropRepeatedPhotos(vehicles.map(toPack));
   if (packs.some((p) => /lake country|boucher|nissanlakecountry|hyundailakecountry/i.test(p.rooftop + p.vdpUrl))) {
     await browser.close();
     throw new Error("Refusing to write old-dealership URLs into packs.json");

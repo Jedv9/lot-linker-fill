@@ -54,8 +54,16 @@ function withDealerFees(pack) {
   return pack;
 }
 
+function stripBrandingPhotos(list) {
+  const rows = Array.isArray(list) ? list : [];
+  if (typeof LotLinkerPhotos === "undefined" || !LotLinkerPhotos.dropRepeatedPhotos) {
+    return rows;
+  }
+  return LotLinkerPhotos.dropRepeatedPhotos(rows);
+}
+
 function normalizePacks(list) {
-  return currentDealerPacks(list).map(withDealerFees);
+  return stripBrandingPhotos(currentDealerPacks(list).map(withDealerFees));
 }
 
 async function overlayVdpTotals(list) {
@@ -468,7 +476,7 @@ $("refreshInventory").onclick = async () => {
     status(`Reading live Total Sale Price for ${remote.length} vehicles…`);
     const overlay = await overlayVdpTotals(remote);
     const previousPacks = packs;
-    packs = overlay.packs;
+    packs = normalizePacks(overlay.packs);
     const at = new Date().toISOString();
     await persistSoldState({
       previousPacks,

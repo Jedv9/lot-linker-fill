@@ -1,3 +1,8 @@
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+const photos = require("../photos.js");
+
 /**
  * Lexus of Brookfield dealer.com inventory helpers.
  * Used by the weekly scraper and Node regression tests. Not loaded by the extension.
@@ -140,8 +145,11 @@ export function photoUrls(vehicle) {
   for (const img of src) {
     const u = String(img.uri).split("#")[0];
     if (!/^https:\/\//i.test(u)) continue;
-    if (seen.has(u)) continue;
+    if (photos.isBrandingPhotoUrl(u)) continue;
+    const key = photos.photoKey(u);
+    if (seen.has(u) || seen.has(key)) continue;
     seen.add(u);
+    seen.add(key);
     out.push(u);
     if (out.length >= MAX_PHOTOS) break;
   }

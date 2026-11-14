@@ -38,7 +38,7 @@ Multi-line Wisconsin shopper copy: vehicle type, Lexus of Brookfield, price, mil
 If a stock has fewer than 5 verified hits, the popup researches that vehicle’s VDP (`vdpUrl`) and NHTSA VIN decode (AWD/4WD only), 10s timeout, then falls back to pack features.
 
 ## Photos
-Fill fetches unit photos from pack `photoUrls` and/or the VDP page (`pictures.dealer.com` and a few dealer CDNs). A red dealer banner is cropped only when that banner is actually detected — Brookfield unit photos are not force-cropped. Status reports `filled model · description · N photos` or `missed: photos` with a reason.
+Fill fetches unit photos from pack `photoUrls` and/or the VDP page (`pictures.dealer.com` and a few dealer CDNs). Branding is dropped: the site favicon (20×20 Lexus L under `/lexusprogram/`), any `/logo`/`favicon` URL, tiny images, and the same photo URL repeated across many vehicles (the Brookfield promo collage). Real vehicle photos stay in order. A red dealer banner is cropped only when that banner is actually detected — Brookfield unit photos are not force-cropped. Status reports `filled model · description · N photos` or `missed: photos` with a reason.
 
 The service worker does the fetch so Facebook is not sent as `Referer`. Host permissions cover the Lexus of Brookfield site and photo CDNs. The content script waits/retries for the photo picker (slow create-page loads) and never clicks Post / Publish / Next.
 
@@ -72,7 +72,7 @@ If the public listing is blocked, a dealer-provided inventory export/feed (CSV/J
 ```
 bash scripts/build-zip.sh
 ```
-Writes `dist/LotLinker.zip` (use this on Windows), plus `dist/lot-linker-fill-2.6.0.zip` and `dist/lot-linker-fill.zip`. Unzip and Load unpacked on the `lot-linker-fill` folder inside.
+Writes `dist/LotLinker.zip` (use this on Windows), plus `dist/lot-linker-fill-2.6.1.zip` and `dist/lot-linker-fill.zip`. Unzip and Load unpacked on the `lot-linker-fill` folder inside.
 
 ## Tests
 ```
@@ -81,6 +81,6 @@ npm run test:fixtures
 ```
 
 ## Version
-2.6.0
+2.6.1
 
 One-click Fill **first** sets **Vehicle type** to **Car/Truck** (Year/Make/etc. will not take until this is set), then writes **Year**, **Make**, **Price**, **Mileage**, **Body style**, **Exterior color**, **Interior color**, **Fuel type**, **Location** (types Brookfield, Wisconsin and picks that suggestion), **Model** title line, **Description**, and **photos**. **VIN is never written**. Clean title and vehicle condition are never written. Description fill still walks Facebook’s vehicle-create markup. Comboboxes open then click a matching `[role=option]`. Price and Mileage use digits only. Location is retried like the other fields. The extension never clicks Post / Publish / Next.
