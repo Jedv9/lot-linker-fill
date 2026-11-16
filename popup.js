@@ -67,33 +67,73 @@ function normalizePacks(list) {
   return stripBrandingPhotos(currentDealerPacks(list).map(withDealerFees));
 }
 
+async function readDealerBatch(items) {
+  const res = await chrome.runtime.sendMessage({
+    type: "LOT_LINKER_READ_DEALER_BATCH",
+    items,
+    concurrency: 3,
+  });
+  return res;
+}
+
 async function overlayVdpTotals(list) {
-  if (typeof LotLinkerVdpPrice === "undefined" || !LotLinkerVdpPrice.overlayLiveTotals) {
+  if (typeof LotLinkerVdpPrice === "undefined" || !LotLinkerVdpPrice.applyLiveTotal) {
     return { packs: list, found: 0, missing: list.length };
   }
-  return LotLinkerVdpPrice.overlayLiveTotals(list, {
+  const rows = Array.isArray(list) ? list : [];
+  if (typeof chrome !== "undefined" && chrome.runtime?.sendMessage) {
+    const out = [];
+    let found = 0;
+    let missing = 0;
+    const chunk = 6;
+    for (let i = 0; i < rows.length; i += chunk) {
+      const slice = rows.slice(i, i + chunk);
+      status(`Reading live Total Sale Price in dealer tabs ${i + 1}–${Math.min(i + chunk, rows.length)}/${rows.length}`);
+      let res;
+      try {
+        res = await readDealerBatch(slice.map((p) => ({ url: p.vdpUrl, stock: p.stock, kind: "vdp" })));
+      } catch (e) {
+        res = { ok: false, error: String(e), rows: [] };
+      }
+      const got = res?.rows || [];
+      for (let j = 0; j < slice.length; j++) {
+        const extracted = got[j]?.extracted || {
+          found: false,
+          reason: got[j]?.error || res?.error || "tab-error",
+        };
+        const next = LotLinkerVdpPrice.applyLiveTotal(slice[j], extracted);
+        if (next.priceMissing) missing += 1;
+        else found += 1;
+        out.push(next);
+      }
+    }
+    return { packs: out, found, missing };
+  }
+  return LotLinkerVdpPrice.overlayLiveTotals(rows, {
     fetchFn: async (url) => {
       for (let attempt = 0; attempt < 6; attempt++) {
         const res = await fetch(url, {
-          credentials: "omit",
+          credentials: "include",
           headers: { accept: "text/html,application/xhtml+xml" },
         });
-        if (res.status === 403 || res.status === 401) return "";
+        if (res.status === 403 || res.status === 401) {
+          return { html: await res.text().catch(() => ""), status: res.status };
+        }
         if (res.status === 429 || res.status === 503) {
           const ra = Number(res.headers.get("retry-after") || 0);
           const wait = ra > 0 ? ra * 1000 : 8000 * 2 ** attempt;
           await new Promise((r) => setTimeout(r, Math.min(wait, 60000)));
           continue;
         }
-        if (!res.ok) return "";
-        return res.text();
+        const html = await res.text();
+        return { html, status: res.status };
       }
-      return "";
+      return { html: "", status: 0 };
     },
     onProgress: ({ i, total, stock }) => {
       status(`Reading live Total Sale Price ${i + 1}/${total}${stock ? ` · ${stock}` : ""}`);
     },
-    gapMs: 1200,
+    gapMs: 400,
   });
 }
 
@@ -373,6 +413,15 @@ function renderListing(pack) {
   if (priceWarn) {
     const missing = pack?.priceMissing || !listingFor(pack) || (typeof LotLinkerListing !== "undefined" && !LotLinkerListing.advertisedPrice(pack));
     priceWarn.hidden = !missing;
+    if (missing) {
+      const why =
+        typeof LotLinkerVdpPrice !== "undefined" && LotLinkerVdpPrice.missingReasonText
+          ? LotLinkerVdpPrice.missingReasonText(pack)
+          : pack?.priceMissingReason || "";
+      priceWarn.textContent = why
+        ? `Total Sale Price not found (${why}) — not filling a computed price.`
+        : "Total Sale Price not found on the dealer page — not filling a computed price. Refresh packs and check this stock.";
+    }
   }
   const listed = $("listedOnFb");
   if (listed) {
@@ -457,7 +506,11 @@ $("fill").onclick = async () => {
     const idx = packs.findIndex((p) => p.stock === pack.stock);
     if (idx >= 0) packs[idx] = pack;
     if (pack.priceMissing || !(typeof LotLinkerListing !== "undefined" && LotLinkerListing.advertisedPrice(pack))) {
-      status("Total Sale Price missing on dealer site — not filling a computed price");
+      const why =
+        typeof LotLinkerVdpPrice !== "undefined" && LotLinkerVdpPrice.missingReasonText
+          ? LotLinkerVdpPrice.missingReasonText(pack)
+          : pack.priceMissingReason || "";
+      status(`Total Sale Price missing${why ? ` (${why})` : ""} — not filling a computed price`);
     }
     selected = pack;
     renderListing(pack);
@@ -495,10 +548,27 @@ $("refreshInventory").onclick = async () => {
   status("Reading live used inventory from lexusofbrookfield.com…");
   try {
     const lot = await liveApi.collectUsedInventory({
+      readPage: async (url) => {
+        const res = await chrome.runtime.sendMessage({
+          type: "LOT_LINKER_READ_DEALER",
+          url,
+          kind: "listing",
+        });
+        if (res?.blocked || res?.challenge === "akamai-challenge") {
+          const err = new Error(`blocked fetching ${url}`);
+          err.blocked = true;
+          err.status = res.status || 403;
+          throw err;
+        }
+        if (Array.isArray(res?.vehicles) && res.vehicles.length) {
+          return { html: res.html || "", vehicles: res.vehicles, expectedTotal: res.expectedTotal };
+        }
+        return { html: res?.html || "", expectedTotal: res?.expectedTotal };
+      },
       onProgress: ({ i, total, count, expectedTotal }) => {
         status(`Reading used inventory ${i + 1}/${total}${count != null ? ` · ${count}` : ""}${expectedTotal ? ` of ${expectedTotal}` : ""}`);
       },
-      gapMs: 400,
+      gapMs: 200,
     });
     if (!lot.packs.length) {
       status("Refresh failed: no vehicles on used-inventory");

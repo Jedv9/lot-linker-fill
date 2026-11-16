@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Marketplace vehicle create listing (mock)</title>
+  <style>
+    body { font: 14px/1.4 system-ui, sans-serif; max-width: 760px; margin: 24px auto; }
+    input, [contenteditable], [role=combobox] { width: 100%; box-sizing: border-box; padding: 8px; font: inherit; }
+    [contenteditable] { min-height: 180px; border: 1px solid #94a3b8; white-space: pre-wrap; }
+    [role=combobox] { border: 1px solid #94a3b8; min-height: 38px; }
+    [role=option] { padding: 6px 8px; cursor: pointer; }
+    .fb-field { margin: 12px 0; }
+    .fb-field > span { display: block; font-weight: 600; margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+  <h1>Marketplace vehicle create listing (mock)</h1>
+  <p class="warn">Fill Year, Make, Price, Mileage, Body style, colors, Fuel, Location (Brookfield, Wisconsin), Model, Description. You click Post. Protected fields stay empty.</p>
+  <div class="fb-field"><span>Vehicle type</span><div id="vehicle-type" role="combobox" aria-label="Vehicle type" aria-haspopup="listbox" tabindex="0"></div></div>
+  <div class="fb-field"><span>Year</span><div id="year" role="combobox" aria-label="Year" aria-haspopup="listbox" tabindex="0"></div></div>
+  <div class="fb-field"><span>Make</span><div id="make" role="combobox" aria-label="Make" aria-haspopup="listbox" tabindex="0"></div></div>
+  <div class="fb-field"><label><span>Model</span><input id="model" /></label></div>
+  <div class="fb-field"><span>Price</span><input id="price" aria-label="Price" inputmode="numeric" /></div>
+  <div class="fb-field"><span>Mileage</span><input id="mileage" aria-label="Mileage" value="87000" /></div>
+  <div class="fb-field"><span>Body style</span><div id="body-style" role="combobox" aria-label="Body style" aria-haspopup="listbox" tabindex="0"></div></div>
+  <div class="fb-field"><span>Exterior color</span><div id="exterior" role="combobox" aria-label="Exterior color" aria-haspopup="listbox" tabindex="0"></div></div>
+  <div class="fb-field"><span>Interior color</span><div id="interior" role="combobox" aria-label="Interior color" aria-haspopup="listbox" tabindex="0"></div></div>
+  <div class="fb-field"><span>Fuel type</span><div id="fuel" role="combobox" aria-label="Fuel type" aria-haspopup="listbox" tabindex="0"></div></div>
+  <div class="fb-field">
+    <span>Location</span>
+    <input id="location" aria-label="Location" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" value="Oconomowoc, Wisconsin" />
+    <div id="location-list" role="listbox" hidden></div>
+  </div>
+  <div class="fb-field"><span>VIN</span><input id="vin" aria-label="VIN" value="DO-NOT-TOUCH" /></div>
+  <div class="fb-field"><span>Title status</span><input id="title-status" aria-label="Title status" value="Clean" /></div>
+  <div class="fb-field"><label><input id="clean-title" type="checkbox" aria-label="This vehicle has a clean title" /> This vehicle has a clean title</label></div>
+  <div class="fb-field"><span>Vehicle condition</span><input id="condition" aria-label="Vehicle condition" value="" /></div>
+  <div class="fb-field"><span>Photos</span><input id="photos" type="file" multiple accept="image/*" aria-label="Add photos" /></div>
+  <div class="fb-composer">
+    <span class="hint">Tell buyers about your vehicle</span>
+    <label>
+      <span>Description</span>
+      <textarea id="description" aria-label="Description" aria-placeholder="Description" data-lot="description" rows="12"></textarea>
+    </label>
+  </div>
+  <script>
+    function wireCombo(id, options) {
+      const box = document.getElementById(id);
+      const list = document.createElement("div");
+      list.setAttribute("role", "listbox");
+      list.hidden = true;
+      options.forEach((v) => {
+        const o = document.createElement("div");
+        o.setAttribute("role", "option");
+        o.textContent = v;
+        o.addEventListener("click", (e) => {
+          e.stopPropagation();
+          box.textContent = v;
+          box.dataset.value = v;
+          list.hidden = true;
+        });
+        list.appendChild(o);
+      });
+      box.after(list);
+      box.addEventListener("click", () => { list.hidden = !list.hidden; });
+    }
+    wireCombo("vehicle-type", ["Car/Truck", "Boat", "Motorcycle"]);
+    wireCombo("year", ["2012","2015","2016","2018","2019","2020","2021","2022","2023","2024","2025","2026"]);
+    wireCombo("make", ["Ford","Lexus","Genesis","Honda","Toyota","BMW","Audi","Jeep","Chevrolet"]);
+    wireCombo("body-style", ["Sedan","SUV","Truck","Hatchback","Coupe","Minivan","Wagon"]);
+    wireCombo("exterior", ["Black","Blue","Grey","Gray","Silver","White","Red"]);
+    wireCombo("interior", ["Black","Grey","Gray","Tan","Beige","Brown"]);
+    wireCombo("fuel", ["Gasoline","Diesel","Electric","Hybrid"]);
+    (function () {
+      const input = document.getElementById("location");
+      const list = document.getElementById("location-list");
+      const places = ["Oconomowoc, Wisconsin","Brookfield, Illinois","Brookfield, Wisconsin","Brookfield, Ohio"];
+      function render(q) {
+        const first = String(q || "").toLowerCase().split(",")[0].trim();
+        list.innerHTML = "";
+        places.filter((p) => !first || p.toLowerCase().includes(first)).forEach((v) => {
+          const o = document.createElement("div");
+          o.setAttribute("role", "option");
+          o.textContent = v;
+          o.addEventListener("click", (e) => {
+            e.stopPropagation();
+            input.value = v;
+            input.dataset.value = v;
+            list.hidden = true;
+          });
+          list.appendChild(o);
+        });
+        list.hidden = false;
+      }
+      input.addEventListener("focus", () => render(input.value));
+      input.addEventListener("input", () => render(input.value));
+    })();
+    window.snapshotForm = function () {
+      const d = document.getElementById("description") || document.querySelector("[data-lot=description]");
+      return {
+        vehicleType: document.getElementById("vehicle-type").textContent.trim(),
+        year: document.getElementById("year").textContent.trim(),
+        make: document.getElementById("make").textContent.trim(),
+        model: document.getElementById("model").value,
+        price: document.getElementById("price").value,
+        mileage: document.getElementById("mileage").value,
+        location: document.getElementById("location").value,
+        vin: document.getElementById("vin").value,
+        description: (d && (d.value || d.innerText || d.textContent)) || "",
+        photoCount: document.getElementById("photos").files.length,
+      };
+    };
+  </script>
+</body>
+</html>

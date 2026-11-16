@@ -270,7 +270,7 @@
     let lastStatus = 0;
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const res = await doFetch(url, {
-        credentials: "omit",
+        credentials: "include",
         cache: "no-cache",
         headers: { accept: "text/html,application/xhtml+xml" },
       });
@@ -299,20 +299,42 @@
     throw err;
   }
 
+  async function loadListingPage(url, { fetchFn, readPage, maxAttempts } = {}) {
+    if (typeof readPage === "function") {
+      const r = await readPage(url);
+      if (typeof r === "string") {
+        return { html: r, vehicles: vehiclesFromListingHtml(r), expectedTotal: extractTotalCount(r) };
+      }
+      const html = r?.html || "";
+      const vehicles = Array.isArray(r?.vehicles) && r.vehicles.length ? r.vehicles : vehiclesFromListingHtml(html);
+      const expectedTotal = r?.expectedTotal || extractTotalCount(html);
+      if (r?.blocked || r?.challenge === "akamai-challenge") {
+        const err = new Error(`blocked fetching ${url}`);
+        err.blocked = true;
+        err.status = r.status || 403;
+        throw err;
+      }
+      return { html, vehicles, expectedTotal };
+    }
+    const html = await fetchListingHtml(url, { fetchFn, maxAttempts });
+    return { html, vehicles: vehiclesFromListingHtml(html), expectedTotal: extractTotalCount(html) };
+  }
+
   async function collectUsedInventory({
     fetchFn,
+    readPage,
     onProgress,
     gapMs = 400,
     pageSize = PAGE_SIZE,
   } = {}) {
     const firstUrl = listingUrl(USED_INVENTORY_PAGE, { pageSize });
     if (typeof onProgress === "function") onProgress({ phase: "listing", i: 0, total: 1, url: firstUrl });
-    const firstHtml = await fetchListingHtml(firstUrl, { fetchFn });
-    const expectedTotal = extractTotalCount(firstHtml) || 0;
-    let vehicles = dedupeVehicles(vehiclesFromListingHtml(firstHtml)).filter(isPreownedListing);
+    const first = await loadListingPage(firstUrl, { fetchFn, readPage });
+    const expectedTotal = first.expectedTotal || 0;
+    let vehicles = dedupeVehicles(first.vehicles).filter(isPreownedListing);
 
     const queued = new Set();
-    for (const href of extractNextListingUrls(firstHtml)) queued.add(href);
+    for (const href of extractNextListingUrls(first.html)) queued.add(href);
     for (let start = pageSize; start < Math.max(expectedTotal, pageSize * 2); start += pageSize) {
       queued.add(listingUrl(USED_INVENTORY_PAGE, { start, pageSize }));
     }
@@ -325,8 +347,8 @@
         onProgress({ phase: "listing", i: i + 1, total: pages.length + 1, url, count: vehicles.length, expectedTotal });
       }
       try {
-        const html = await fetchListingHtml(url, { fetchFn });
-        vehicles = dedupeVehicles([...vehicles, ...vehiclesFromListingHtml(html)]).filter(isPreownedListing);
+        const page = await loadListingPage(url, { fetchFn, readPage });
+        vehicles = dedupeVehicles([...vehicles, ...page.vehicles]).filter(isPreownedListing);
       } catch (e) {
         if (e?.blocked) throw e;
         break;
@@ -359,5 +381,6 @@
     mergeLiveWithPrevious,
     collectUsedInventory,
     fetchListingHtml,
+    loadListingPage,
   };
 });

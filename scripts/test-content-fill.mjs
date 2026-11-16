@@ -13,8 +13,11 @@ const manifest = JSON.parse(readFileSync(new URL("../manifest.json", import.meta
 const background = readFileSync(new URL("../background.js", import.meta.url), "utf8");
 const zipBuild = readFileSync(new URL("./build-zip.sh", import.meta.url), "utf8");
 
-assert.equal(manifest.version, "2.7.0");
+assert.equal(manifest.version, "2.7.1");
 assert.deepEqual(manifest.content_scripts[0].js, ["vdp-price.js", "listing-copy.js", "photos.js", "content-fb.js"]);
+assert.ok(manifest.content_scripts.some((c) => c.js.includes("content-dealer.js")));
+assert.ok(manifest.permissions.includes("scripting"));
+assert.ok(manifest.permissions.includes("tabs"));
 assert.equal(manifest.background.service_worker, "background.js");
 assert.ok(manifest.permissions.includes("downloads"), "fallback save uses chrome.downloads");
 assert.ok(manifest.host_permissions.some((h) => /lexusofbrookfield\.com/.test(h)));
@@ -28,6 +31,7 @@ assert.match(zipBuild, /LotLinker\.zip/);
 assert.match(zipBuild, /sold-watch\.js/);
 assert.match(zipBuild, /vdp-price\.js/);
 assert.match(zipBuild, /inventory-live\.js/);
+assert.match(zipBuild, /content-dealer\.js/);
 assert.match(background, /setBadgeText/);
 assert.match(background, /sold-watch\.js/);
 assert.match(popupHtml, /Sold — take these down/);

@@ -80,6 +80,9 @@ assert.equal(blocked, true, "HTTP 403 from used-inventory must fail fast as bloc
 assert.match(popup, /collectUsedInventory/);
 assert.match(popup, /used-inventory/);
 assert.match(popup, /overlayVdpTotals\(\[selected\]\)/);
+assert.match(popup, /LOT_LINKER_READ_DEALER/);
+assert.match(popup, /readPage/);
+assert.match(popup, /credentials: "include"/);
 assert.match(popupHtml, /inventory-live\.js/);
 assert.match(popupHtml, /id="tabPosted"/);
 assert.match(scraper, /isBlockedHttp|HTTP 403/);

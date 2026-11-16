@@ -45,7 +45,7 @@ The service worker does the fetch so Facebook is not sent as `Referer`. Host per
 Facebook caveats: the picker is often a hidden file input behind “Add photos”. Marketplace may cap how many images stick; extras are dropped by FB, not posted. If the composer has not reached the vehicle photo step, Fill reports a missed photo picker — stay on create/vehicle and retry.
 
 ## Packs
-Bundled `packs.json` loads on open as a seed only. **Refresh packs** reads the live [used-inventory](https://www.lexusofbrookfield.com/used-inventory/index.htm) search results (every `?start=` page) in Jed’s browser, then reads each vehicle’s **Total Sale Price** from its live VDP and overwrites the stored Marketplace price with that exact number. It does **not** add $479 + $38 to another field and does **not** keep a stale GitHub price. New stocks appear; stocks that vanished go to **Sold**. If Total Sale Price cannot be found, that stock is flagged (`PRICE MISSING`) and Fill will not write a computed price. Incomplete used-inventory pulls are skipped so a partial pull is never treated as a mass sale. Packs from the old Lake Country rooftops are ignored.
+Bundled `packs.json` loads on open as a seed only. **Refresh packs** opens the live [used-inventory](https://www.lexusofbrookfield.com/used-inventory/index.htm) search results (every `?start=` page) in background browser tabs, then opens each vehicle’s VDP (`/certified/` and `/used/`) the same way and reads the rendered **Total Sale Price** from the pricing widget (the `$` and the number may be on separate lines). It does **not** add $479 + $38 to another field and does **not** keep a stale GitHub price. New stocks appear; stocks that vanished go to **Sold**. If Total Sale Price cannot be found, that stock is flagged (`PRICE MISSING`) with a short reason (asking-only, timeout, HTTP status) and Fill will not write a computed price. Incomplete used-inventory pulls are skipped so a partial pull is never treated as a mass sale. Packs from the old Lake Country rooftops are ignored.
 
 `packs.json` keeps a rolling `soldHistory` (about 60 days, with `detectedAt`) plus the last-run `sold` / `soldSinceLast` lists. The popup keeps undismissed rows in `chrome.storage` until Jed clicks **Taken down**.
 
@@ -54,7 +54,7 @@ Weekly GitHub Action: `scripts/scrape-inventory.mjs` reads the public dealer.com
 - Pre-owned (all makes): https://www.lexusofbrookfield.com/used-inventory/index.htm
 - L/Certified: https://www.lexusofbrookfield.com/l-certified-inventory/index.htm
 
-Completeness is the used-inventory total (`Browse our inventory of N` / make-facet sum), currently 110 across 24 makes. CPO units are a subset of that pre-owned lot. The HTML sitemap is **not** a complete inventory export (Lexus CPO/used only). New inventory (`/new-inventory/index.htm`, `/new/`, `/electric-new/`) is excluded. VDP URLs look like `/used/{Make}/{Year}-{Make}-{Model}-{id}.htm` and `/certified/LEXUS/...` (hybrids may use `/electric-certified/`).
+Completeness is the used-inventory total (`Browse our inventory of N` / make-facet sum). CPO units are a subset of that pre-owned lot. The HTML sitemap is **not** a complete inventory export (Lexus CPO/used only). New inventory (`/new-inventory/index.htm`, `/new/`, `/electric-new/`) is excluded. VDP URLs look like `/used/{Make}/{Year}-{Make}-{Model}-{id}.htm` and `/certified/LEXUS/...` (hybrids may use `/electric-certified/`).
 
 The scraper honors HTTP 429 `Retry-After` and exponential backoff. GitHub datacenters often get **HTTP 403** from dealer.com; the Action fails fast on 403, keeps the previous `packs.json`, and exits 0 (the extension Refresh path is the live source of truth). It paginates, dedupes by VIN/stock, and **will not overwrite** `packs.json` with a partial collection.
 
@@ -72,15 +72,16 @@ If the public listing is blocked, a dealer-provided inventory export/feed (CSV/J
 ```
 bash scripts/build-zip.sh
 ```
-Writes `dist/LotLinker.zip` (use this on Windows), plus `dist/lot-linker-fill-2.7.0.zip` and `dist/lot-linker-fill.zip`. Unzip and Load unpacked on the `lot-linker-fill` folder inside.
+Writes `dist/LotLinker.zip` (use this on Windows), plus `dist/lot-linker-fill-2.7.1.zip` and `dist/lot-linker-fill.zip`. Unzip and Load unpacked on the `lot-linker-fill` folder inside.
 
 ## Tests
 ```
 npm test
+npm run test:e2e
 npm run test:fixtures
 ```
 
 ## Version
-2.7.0
+2.7.1
 
 One-click Fill **first** sets **Vehicle type** to **Car/Truck** (Year/Make/etc. will not take until this is set), then writes **Year**, **Make**, **Price**, **Mileage**, **Body style**, **Exterior color**, **Interior color**, **Fuel type**, **Location** (types Brookfield, Wisconsin and picks that suggestion), **Model** title line, **Description**, and **photos**. **VIN is never written**. Clean title and vehicle condition are never written. Description fill still walks Facebook’s vehicle-create markup. Comboboxes open then click a matching `[role=option]`. Price and Mileage use digits only. Location is retried like the other fields. The extension never clicks Post / Publish / Next.

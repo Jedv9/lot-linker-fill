@@ -155,7 +155,7 @@ assert.deepEqual(
   ["PMT3253"]
 );
 
-assert.equal(manifest.version, "2.7.0");
+assert.equal(manifest.version, "2.7.1");
 assert.ok(manifest.host_permissions.some((h) => /lexusofbrookfield\.com/.test(h)));
 assert.ok(manifest.host_permissions.some((h) => /pictures\.dealer\.com/.test(h)));
 assert.ok(!manifest.host_permissions.some((h) => /nissanlakecountry|hyundailakecountry|boucher\.com/.test(h)));

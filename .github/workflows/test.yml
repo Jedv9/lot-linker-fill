@@ -13,5 +13,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - name: Unit tests
+      - name: Install
+        run: npm install
+      - name: Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Unit + e2e tests
         run: npm test

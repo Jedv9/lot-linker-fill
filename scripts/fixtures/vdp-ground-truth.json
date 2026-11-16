@@ -1,0 +1,62 @@
+[
+  {
+    "stock": "PER3178",
+    "year": "2025",
+    "make": "Lexus",
+    "model": "ES",
+    "trim": "350",
+    "mileage": "7015",
+    "asking": 46298,
+    "total": 46815,
+    "path": "/certified/LEXUS/2025-LEXUS-ES-39bb1cb7ac185c86ce6390393eb60994.htm",
+    "condition": "CPO"
+  },
+  {
+    "stock": "PER3184",
+    "year": "2024",
+    "make": "Lexus",
+    "model": "ES",
+    "trim": "350",
+    "mileage": "12840",
+    "asking": 41998,
+    "total": 42515,
+    "path": "/certified/LEXUS/2024-LEXUS-ES-5de2d2abac180b7620d871aedb18f7f2.htm",
+    "condition": "CPO"
+  },
+  {
+    "stock": "PRS3199",
+    "year": "2023",
+    "make": "Lexus",
+    "model": "GX",
+    "trim": "460",
+    "mileage": "24112",
+    "asking": 56498,
+    "total": 57015,
+    "path": "/certified/LEXUS/2023-LEXUS-GX-924e915dac18004e1d0db14e98655420.htm",
+    "condition": "CPO"
+  },
+  {
+    "stock": "30280A",
+    "year": "2021",
+    "make": "Lexus",
+    "model": "NX",
+    "trim": "300",
+    "mileage": "31200",
+    "asking": 31459,
+    "total": 31976,
+    "path": "/certified/LEXUS/2021-LEXUS-NX-27a464dfac18551af8c02fae0833c014.htm",
+    "condition": "CPO"
+  },
+  {
+    "stock": "PMT3291",
+    "year": "2024",
+    "make": "Lexus",
+    "model": "RX",
+    "trim": "350",
+    "mileage": "9800",
+    "asking": 44498,
+    "total": 45015,
+    "path": "/certified/LEXUS/2024-LEXUS-RX-cd30365cac18100891b135ef22a69478.htm",
+    "condition": "CPO"
+  }
+]

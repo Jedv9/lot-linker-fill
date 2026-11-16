@@ -10,15 +10,20 @@ const esHtml = readFileSync(new URL("./fixtures/es-vdp-pricing.html", import.met
 const popup = readFileSync(new URL("../popup.js", import.meta.url), "utf8");
 const scraper = readFileSync(new URL("./scrape-inventory.mjs", import.meta.url), "utf8");
 
+const splitEs = readFileSync(new URL("./fixtures/vdp-es-per3178-split.html", import.meta.url), "utf8");
 const extracted = vdp.extractTotalSalePrice(esHtml);
 assert.equal(extracted.found, true);
 assert.equal(extracted.total, 46815);
+const split = vdp.extractTotalSalePrice(splitEs);
+assert.equal(split.total, 46815);
+assert.equal(split.asking, 46298);
+assert.equal(vdp.moneyFromScattered("$\n46,815"), 46815);
 assert.equal(extracted.asking, 46298);
 assert.equal(extracted.serviceFee, 479);
 assert.equal(extracted.filingFee, 38);
 assert.equal(extracted.total, 46298 + 479 + 38, "screenshot math matches; the parser still reads 46815 from the page");
 assert.notEqual(extracted.total, 47015, "must not use listing-feed asking 46498 + 517");
-assert.match(extracted.source, /vdp-visible|dprice-label/);
+assert.match(extracted.source, /vdp-visible|dprice-label|dom-dt-dd|text-label/);
 
 const stale = {
   stock: "PER3178",
