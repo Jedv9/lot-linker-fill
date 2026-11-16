@@ -1,3 +1,8 @@
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+const photos = require("../photos.js");
+
 /**
  * Lexus of Brookfield dealer.com inventory helpers.
  * Used by the weekly scraper and Node regression tests. Not loaded by the extension.
@@ -95,27 +100,32 @@ export function attrNormalized(vehicle, name) {
 export function pickPricing(vehicle) {
   const dprice = Array.isArray(vehicle?.pricing?.dprice) ? vehicle.pricing.dprice : [];
   const askingRow = dprice.find((x) => x?.typeClass === "askingPrice");
-  const totalRow = dprice.find((x) => x?.typeClass === "internetPrice" || x?.isFinalPrice);
+  const totalRow =
+    dprice.find((x) => /total sale price/i.test(String(x?.label || ""))) ||
+    dprice.find((x) => x?.isFinalPrice && x?.typeClass === "internetPrice");
   const tp = vehicle?.trackingPricing || {};
-  const asking = num(askingRow?.value) || num(tp.askingPrice) || num(tp.salePrice) || 0;
-  const siteTotal = num(totalRow?.value) || num(tp.internetPrice) || 0;
-  const retail = num(vehicle?.pricing?.retailPrice);
-  if (asking && siteTotal === asking + DEALER_FEES) {
-    return { base: asking, total: siteTotal, serviceFee: SERVICE_FEE, filingFee: FILING_FEE, fees: DEALER_FEES };
-  }
-  if (asking) {
-    return { base: asking, total: asking + DEALER_FEES, serviceFee: SERVICE_FEE, filingFee: FILING_FEE, fees: DEALER_FEES };
-  }
+  const asking = num(askingRow?.value) || num(tp.askingPrice) || 0;
+  const siteTotal = num(totalRow?.value);
+  const serviceFee = num(dprice.find((x) => x?.typeClass === "documentFee" || /service fee/i.test(String(x?.label || "")))?.value) || SERVICE_FEE;
+  const filingFee = num(dprice.find((x) => x?.typeClass === "deliveryFee" || /filing fee/i.test(String(x?.label || "")))?.value) || FILING_FEE;
   if (siteTotal) {
-    const base = siteTotal - DEALER_FEES;
-    if (base > 0) {
-      return { base, total: siteTotal, serviceFee: SERVICE_FEE, filingFee: FILING_FEE, fees: DEALER_FEES };
-    }
+    return {
+      base: asking || 0,
+      total: siteTotal,
+      serviceFee,
+      filingFee,
+      fees: serviceFee + filingFee,
+      found: true,
+    };
   }
-  if (retail) {
-    return { base: retail, total: retail + DEALER_FEES, serviceFee: SERVICE_FEE, filingFee: FILING_FEE, fees: DEALER_FEES };
-  }
-  return { base: 0, total: 0, serviceFee: SERVICE_FEE, filingFee: FILING_FEE, fees: DEALER_FEES };
+  return {
+    base: asking || 0,
+    total: 0,
+    serviceFee,
+    filingFee,
+    fees: serviceFee + filingFee,
+    found: false,
+  };
 }
 
 export function pickPrice(vehicle) {
@@ -135,8 +145,11 @@ export function photoUrls(vehicle) {
   for (const img of src) {
     const u = String(img.uri).split("#")[0];
     if (!/^https:\/\//i.test(u)) continue;
-    if (seen.has(u)) continue;
+    if (photos.isBrandingPhotoUrl(u)) continue;
+    const key = photos.photoKey(u);
+    if (seen.has(u) || seen.has(key)) continue;
     seen.add(u);
+    seen.add(key);
     out.push(u);
     if (out.length >= MAX_PHOTOS) break;
   }
@@ -456,11 +469,15 @@ export function toPack(vehicle) {
     titleStatus: "Title Clean",
     zip: DEALER.zip,
     basePrice: pricing.base > 0 ? String(pricing.base) : "",
-    serviceFee: String(SERVICE_FEE),
-    filingFee: String(FILING_FEE),
-    dealerFees: String(DEALER_FEES),
+    askingPrice: pricing.base > 0 ? String(pricing.base) : "",
+    serviceFee: String(pricing.serviceFee || SERVICE_FEE),
+    filingFee: String(pricing.filingFee || FILING_FEE),
+    dealerFees: String(pricing.fees || DEALER_FEES),
+    totalSalePrice: pricing.total > 0 ? String(pricing.total) : "",
     price: pricing.total > 0 ? String(pricing.total) : "",
-    priceIncludesDealerFees: true,
+    priceMissing: !pricing.found,
+    priceSource: pricing.found ? "dprice-label" : "missing",
+    priceIncludesDealerFees: Boolean(pricing.found),
     title: [vehicle.year, make, model, trim, bodyStyle].filter(Boolean).join(" "),
     rooftop: DEALER.name,
     photoUrls: photos,

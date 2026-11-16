@@ -5,6 +5,7 @@ let researchStock = null;
 let soldWatch = [];
 let soldDismissed = {};
 let listedStocks = {};
+let listTab = "lot";
 
 const $ = (id) => document.getElementById(id);
 const status = (t) => { $("status").textContent = t || ""; };
@@ -48,14 +49,92 @@ function currentDealerPacks(list) {
 }
 
 function withDealerFees(pack) {
-  if (typeof LotLinkerListing !== "undefined" && LotLinkerListing.withDealerFees) {
-    return LotLinkerListing.withDealerFees(pack);
+  if (typeof LotLinkerListing !== "undefined" && LotLinkerListing.advertisedPack) {
+    return LotLinkerListing.advertisedPack(pack);
   }
   return pack;
 }
 
+function stripBrandingPhotos(list) {
+  const rows = Array.isArray(list) ? list : [];
+  if (typeof LotLinkerPhotos === "undefined" || !LotLinkerPhotos.dropRepeatedPhotos) {
+    return rows;
+  }
+  return LotLinkerPhotos.dropRepeatedPhotos(rows);
+}
+
 function normalizePacks(list) {
-  return currentDealerPacks(list).map(withDealerFees);
+  return stripBrandingPhotos(currentDealerPacks(list).map(withDealerFees));
+}
+
+async function readDealerBatch(items) {
+  const res = await chrome.runtime.sendMessage({
+    type: "LOT_LINKER_READ_DEALER_BATCH",
+    items,
+    concurrency: 3,
+  });
+  return res;
+}
+
+async function overlayVdpTotals(list) {
+  if (typeof LotLinkerVdpPrice === "undefined" || !LotLinkerVdpPrice.applyLiveTotal) {
+    return { packs: list, found: 0, missing: list.length };
+  }
+  const rows = Array.isArray(list) ? list : [];
+  if (typeof chrome !== "undefined" && chrome.runtime?.sendMessage) {
+    const out = [];
+    let found = 0;
+    let missing = 0;
+    const chunk = 6;
+    for (let i = 0; i < rows.length; i += chunk) {
+      const slice = rows.slice(i, i + chunk);
+      status(`Reading live Total Sale Price in dealer tabs ${i + 1}–${Math.min(i + chunk, rows.length)}/${rows.length}`);
+      let res;
+      try {
+        res = await readDealerBatch(slice.map((p) => ({ url: p.vdpUrl, stock: p.stock, kind: "vdp" })));
+      } catch (e) {
+        res = { ok: false, error: String(e), rows: [] };
+      }
+      const got = res?.rows || [];
+      for (let j = 0; j < slice.length; j++) {
+        const extracted = got[j]?.extracted || {
+          found: false,
+          reason: got[j]?.error || res?.error || "tab-error",
+        };
+        const next = LotLinkerVdpPrice.applyLiveTotal(slice[j], extracted);
+        if (next.priceMissing) missing += 1;
+        else found += 1;
+        out.push(next);
+      }
+    }
+    return { packs: out, found, missing };
+  }
+  return LotLinkerVdpPrice.overlayLiveTotals(rows, {
+    fetchFn: async (url) => {
+      for (let attempt = 0; attempt < 6; attempt++) {
+        const res = await fetch(url, {
+          credentials: "include",
+          headers: { accept: "text/html,application/xhtml+xml" },
+        });
+        if (res.status === 403 || res.status === 401) {
+          return { html: await res.text().catch(() => ""), status: res.status };
+        }
+        if (res.status === 429 || res.status === 503) {
+          const ra = Number(res.headers.get("retry-after") || 0);
+          const wait = ra > 0 ? ra * 1000 : 8000 * 2 ** attempt;
+          await new Promise((r) => setTimeout(r, Math.min(wait, 60000)));
+          continue;
+        }
+        const html = await res.text();
+        return { html, status: res.status };
+      }
+      return { html: "", status: 0 };
+    },
+    onProgress: ({ i, total, stock }) => {
+      status(`Reading live Total Sale Price ${i + 1}/${total}${stock ? ` · ${stock}` : ""}`);
+    },
+    gapMs: 400,
+  });
 }
 
 function payloadMeta(data) {
@@ -184,6 +263,7 @@ async function setListed(stock, on) {
   listedStocks = api.toggleListed(listedStocks, stock, on);
   await chrome.storage.local.set({ listedStocks });
   renderSold();
+  renderList();
 }
 
 async function loadBundled() {
@@ -253,15 +333,38 @@ function fillStoreFilter() {
   sel.value = stores.includes(prev) ? prev : "";
 }
 
+function isPosted(pack) {
+  const api = soldApi();
+  return api ? api.isListed(listedStocks, pack?.stock) : false;
+}
+
+function postedPacks() {
+  return packs.filter((p) => isPosted(p));
+}
+
+function lotPacks() {
+  return packs.filter((p) => !isPosted(p));
+}
+
 function applyFilters() {
   const q = ($("q")?.value || "").trim().toLowerCase();
   const store = $("fStore")?.value || "";
-  return packs.filter((p) => {
+  const pool = listTab === "posted" ? postedPacks() : lotPacks();
+  return pool.filter((p) => {
     if (store && (p.rooftop || "") !== store) return false;
     if (!q) return true;
     const hay = [p.stock, p.vin, p.year, p.make, p.model, p.trim].join(" ").toLowerCase();
     return hay.includes(q);
   });
+}
+
+function updateTabCounts() {
+  const lotEl = $("lotCount");
+  const postedEl = $("postedCount");
+  if (lotEl) lotEl.textContent = String(lotPacks().length);
+  if (postedEl) postedEl.textContent = String(postedPacks().length);
+  $("tabLot")?.classList.toggle("on", listTab === "lot");
+  $("tabPosted")?.classList.toggle("on", listTab === "posted");
 }
 
 function packPickerLabel(pack) {
@@ -282,8 +385,12 @@ function renderList() {
     opt.textContent = packPickerLabel(p);
     list.appendChild(opt);
   }
-  if (!filtered.length) status("No matches");
-  else status(`${filtered.length} shown · ${packs.length} total`);
+  updateTabCounts();
+  if (!filtered.length) {
+    status(listTab === "posted" ? "No posted cars" : "No matches");
+  } else {
+    status(`${filtered.length} shown · ${lotPacks().length} on lot · ${postedPacks().length} posted`);
+  }
   if (selected && !filtered.some((p) => p.stock === selected.stock)) showPack(null);
 }
 
@@ -302,10 +409,24 @@ function renderListing(pack) {
   const photos = $("mPhotos");
   if (photos) photos.textContent = photoMetaText(pack);
   $("mBody").textContent = listing.body;
+  const priceWarn = $("priceWarn");
+  if (priceWarn) {
+    const missing = pack?.priceMissing || !listingFor(pack) || (typeof LotLinkerListing !== "undefined" && !LotLinkerListing.advertisedPrice(pack));
+    priceWarn.hidden = !missing;
+    if (missing) {
+      const why =
+        typeof LotLinkerVdpPrice !== "undefined" && LotLinkerVdpPrice.missingReasonText
+          ? LotLinkerVdpPrice.missingReasonText(pack)
+          : pack?.priceMissingReason || "";
+      priceWarn.textContent = why
+        ? `Total Sale Price not found (${why}) — not filling a computed price.`
+        : "Total Sale Price not found on the dealer page — not filling a computed price. Refresh packs and check this stock.";
+    }
+  }
   const listed = $("listedOnFb");
   if (listed) {
     const api = soldApi();
-    listed.checked = api ? api.isListed(listedStocks, pack?.stock) : false;
+    listed.checked = isPosted(pack);
   }
 }
 
@@ -350,6 +471,12 @@ function showPack(p) {
 
 $("q").addEventListener("input", () => renderList());
 $("fStore")?.addEventListener("change", () => renderList());
+$("lotTabs")?.addEventListener("click", (e) => {
+  const btn = e.target?.closest?.("button[data-tab]");
+  if (!btn?.dataset?.tab) return;
+  listTab = btn.dataset.tab === "posted" ? "posted" : "lot";
+  renderList();
+});
 $("list").addEventListener("change", () => {
   const p = packs.find((x) => x.stock === $("list").value);
   showPack(p || null);
@@ -372,9 +499,22 @@ $("fill").onclick = async () => {
     return status("Open a facebook.com Marketplace create tab first");
   }
   try {
-    const pack = withDealerFees(await ensureResearched(selected));
+    status("Reading live Total Sale Price from dealer VDP…");
+    const overlay = await overlayVdpTotals([selected]);
+    let pack = overlay.packs[0] || selected;
+    pack = withDealerFees(await ensureResearched(pack));
+    const idx = packs.findIndex((p) => p.stock === pack.stock);
+    if (idx >= 0) packs[idx] = pack;
+    if (pack.priceMissing || !(typeof LotLinkerListing !== "undefined" && LotLinkerListing.advertisedPrice(pack))) {
+      const why =
+        typeof LotLinkerVdpPrice !== "undefined" && LotLinkerVdpPrice.missingReasonText
+          ? LotLinkerVdpPrice.missingReasonText(pack)
+          : pack.priceMissingReason || "";
+      status(`Total Sale Price missing${why ? ` (${why})` : ""} — not filling a computed price`);
+    }
     selected = pack;
     renderListing(pack);
+    await chrome.storage.local.set({ packsOverride: packs });
     const res = await chrome.tabs.sendMessage(tab.id, { type: "LOT_LINKER_FILL", pack });
     if (res?.ok) {
       await setListed(pack.stock, true);
@@ -400,47 +540,72 @@ $("fill").onclick = async () => {
 };
 
 $("refreshInventory").onclick = async () => {
-  const url = (typeof LOT_LINKER_PACKS_URL !== "undefined" && LOT_LINKER_PACKS_URL)
-    ? LOT_LINKER_PACKS_URL
-    : "https://raw.githubusercontent.com/Jedv9/lot-linker-fill/main/packs.json";
-  status("Refreshing packs from GitHub…");
+  const liveApi = typeof LotLinkerInventory !== "undefined" ? LotLinkerInventory : null;
+  if (!liveApi?.collectUsedInventory) {
+    status("Refresh failed: live inventory module missing");
+    return;
+  }
+  status("Reading live used inventory from lexusofbrookfield.com…");
   try {
-    const res = await fetch(`${url}?t=${Date.now()}`);
-    if (!res.ok) {
-      status(`Refresh failed: HTTP ${res.status}`);
-      return;
-    }
-    const data = await res.json();
-    const remote = normalizePacks(Array.isArray(data) ? data : (data.packs || []));
-    if (!remote.length) {
-      status("Refresh failed: no Lexus of Brookfield pre-owned packs in remote JSON");
+    const lot = await liveApi.collectUsedInventory({
+      readPage: async (url) => {
+        const res = await chrome.runtime.sendMessage({
+          type: "LOT_LINKER_READ_DEALER",
+          url,
+          kind: "listing",
+        });
+        if (res?.blocked || res?.challenge === "akamai-challenge") {
+          const err = new Error(`blocked fetching ${url}`);
+          err.blocked = true;
+          err.status = res.status || 403;
+          throw err;
+        }
+        if (Array.isArray(res?.vehicles) && res.vehicles.length) {
+          return { html: res.html || "", vehicles: res.vehicles, expectedTotal: res.expectedTotal };
+        }
+        return { html: res?.html || "", expectedTotal: res?.expectedTotal };
+      },
+      onProgress: ({ i, total, count, expectedTotal }) => {
+        status(`Reading used inventory ${i + 1}/${total}${count != null ? ` · ${count}` : ""}${expectedTotal ? ` of ${expectedTotal}` : ""}`);
+      },
+      gapMs: 200,
+    });
+    if (!lot.packs.length) {
+      status("Refresh failed: no vehicles on used-inventory");
       return;
     }
     const api = soldApi();
-    const previousCount = packs.length;
     const trusted = !api || api.isTrustedComplete({
-      complete: data.complete,
-      expectedTotal: data.expectedTotal,
-      nextCount: remote.length,
-      previousCount,
+      complete: lot.complete,
+      expectedTotal: lot.expectedTotal,
+      nextCount: lot.packs.length,
+      previousCount: packs.length,
     });
     if (!trusted) {
-      status("Refresh skipped: remote packs look incomplete (not treating as mass sold)");
+      status(`Refresh skipped: used-inventory incomplete (${lot.count}/${lot.expectedTotal || "?"}) — not treating as mass sold`);
       return;
     }
+    const merged = liveApi.mergeLiveWithPrevious(packs, lot.packs);
+    status(`Reading live Total Sale Price for ${merged.length} vehicles…`);
+    const overlay = await overlayVdpTotals(merged);
     const previousPacks = packs;
-    packs = remote;
+    packs = normalizePacks(overlay.packs);
     const at = new Date().toISOString();
     await persistSoldState({
       previousPacks,
       nextPacks: packs,
-      payload: payloadMeta(data),
+      payload: {
+        complete: lot.complete,
+        expectedTotal: lot.expectedTotal,
+        soldHistory: [],
+        sold: [],
+      },
       now: at,
     });
     await chrome.storage.local.set({
       packsOverride: packs,
       packsRefreshedAt: at,
-      packsSource: url,
+      packsSource: lot.source,
     });
     fillStoreFilter();
     renderList();
@@ -451,9 +616,15 @@ $("refreshInventory").onclick = async () => {
     }
     showRefreshMeta(at);
     const gone = soldApi()?.undismissedCount(soldWatch, soldDismissed) || 0;
-    status(`Refreshed ${packs.length} packs · ${new Date(at).toLocaleString()}${gone ? ` · ${gone} sold to take down` : ""}`);
+    const missing = overlay.missing ? ` · ${overlay.missing} missing Total Sale Price` : "";
+    const goneBit = gone ? ` · ${gone} sold to take down` : "";
+    status(`Refreshed ${packs.length} from used-inventory · ${overlay.found} live Total Sale Price${missing}${goneBit}`);
   } catch (e) {
-    status(`Refresh failed: network error (${e?.message || e})`);
+    if (e?.blocked || e?.status === 403) {
+      status("Refresh failed: dealer site blocked this request (HTTP 403)");
+      return;
+    }
+    status(`Refresh failed: ${e?.message || e}`);
   }
 };
 

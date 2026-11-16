@@ -13,8 +13,11 @@ const manifest = JSON.parse(readFileSync(new URL("../manifest.json", import.meta
 const background = readFileSync(new URL("../background.js", import.meta.url), "utf8");
 const zipBuild = readFileSync(new URL("./build-zip.sh", import.meta.url), "utf8");
 
-assert.equal(manifest.version, "2.5.1");
-assert.deepEqual(manifest.content_scripts[0].js, ["listing-copy.js", "photos.js", "content-fb.js"]);
+assert.equal(manifest.version, "2.7.1");
+assert.deepEqual(manifest.content_scripts[0].js, ["vdp-price.js", "listing-copy.js", "photos.js", "content-fb.js"]);
+assert.ok(manifest.content_scripts.some((c) => c.js.includes("content-dealer.js")));
+assert.ok(manifest.permissions.includes("scripting"));
+assert.ok(manifest.permissions.includes("tabs"));
 assert.equal(manifest.background.service_worker, "background.js");
 assert.ok(manifest.permissions.includes("downloads"), "fallback save uses chrome.downloads");
 assert.ok(manifest.host_permissions.some((h) => /lexusofbrookfield\.com/.test(h)));
@@ -26,10 +29,18 @@ assert.doesNotMatch(background, /chrome\.downloads/);
 assert.match(zipBuild, /lot-linker-fill/);
 assert.match(zipBuild, /LotLinker\.zip/);
 assert.match(zipBuild, /sold-watch\.js/);
+assert.match(zipBuild, /vdp-price\.js/);
+assert.match(zipBuild, /inventory-live\.js/);
+assert.match(zipBuild, /content-dealer\.js/);
 assert.match(background, /setBadgeText/);
 assert.match(background, /sold-watch\.js/);
 assert.match(popupHtml, /Sold — take these down/);
 assert.match(popupHtml, /sold-watch\.js/);
+assert.match(popupHtml, /vdp-price\.js/);
+assert.match(popupHtml, /inventory-live\.js/);
+assert.match(popupHtml, /id="tabLot"/);
+assert.match(popupHtml, /id="tabPosted"/);
+assert.match(popupHtml, /Posted on Marketplace/);
 assert.match(popup, /Taken down/);
 
 assert.match(content, /LOT_LINKER_FILL/);
@@ -86,6 +97,7 @@ assert.match(content, /LOT_LINKER_PREPARE_PHOTOS/);
 assert.match(popup, /descriptionHit/);
 assert.match(popup, /res\.photos/);
 assert.match(popup, /currentDealerPacks/);
+assert.match(popup, /dropRepeatedPhotos|stripBrandingPhotos/);
 
 assert.doesNotMatch(popup, /downloadPhotos|copyTitle|copyBody|importPaste/);
 assert.doesNotMatch(popupHtml, /Download photos|Copy title|Import ALL-EASY-PASTE/);
@@ -118,7 +130,9 @@ const raptor = listing.packToListing({
   mileage: "87000",
   condition: "USED",
   drivetrain: "4WD",
-  price: "26900",
+  price: "27417",
+  totalSalePrice: "27417",
+  priceSource: "vdp-total",
   rooftop: "Lexus of Brookfield",
 });
 assert.equal(raptor.modelLine, "F-150 SVT Raptor | 4WD | $27,417 | Brookfield WI");

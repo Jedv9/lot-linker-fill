@@ -73,10 +73,15 @@ assert.ok(retryDelayMs({}, 3) > retryDelayMs({}, 0));
 assert.equal(isRetryableHttp(429), true);
 assert.equal(isRetryableHttp(200, "ok"), false);
 assert.equal(isRetryableHttp(503, "Too Many Requests"), true);
+assert.equal(isRetryableHttp(403), false);
 
 assert.match(scraper, /Retry-After/);
 assert.match(scraper, /shouldWritePacks/);
 assert.match(scraper, /soldHistory/);
+assert.match(scraper, /overlayLiveTotals/);
+assert.match(scraper, /dropRepeatedPhotos/);
+assert.match(scraper, /isBlockedHttp|HTTP 403/);
+assert.match(scraper, /process\.exit\(0\)/);
 assert.match(scraper, /buildSoldSnapshot/);
 assert.ok(scraper.indexOf("if (!gate.write)") < scraper.indexOf("buildSoldSnapshot"));
 assert.match(scraper, /start=/);

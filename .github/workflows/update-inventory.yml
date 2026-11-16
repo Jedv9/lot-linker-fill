@@ -17,6 +17,7 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -30,6 +31,10 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
+      # GitHub datacenters often get HTTP 403 from dealer.com. The scraper
+      # fails fast on 403 and exits 0 so this job stays green and does not
+      # overwrite packs.json. Live inventory + Total Sale Price is Refresh
+      # packs in the extension (Jed's browser is not blocked).
       - name: Scrape inventory -> packs.json
         run: node scripts/scrape-inventory.mjs
 

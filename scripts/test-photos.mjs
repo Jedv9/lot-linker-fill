@@ -16,6 +16,8 @@ assert.ok(extracted.some((u) => /vehicle-images\.carscommerce\.inc/.test(u)));
 assert.ok(extracted.some((u) => /pictures\.dealer\.com/.test(u)));
 assert.ok(extracted.some((u) => /lexusofbrookfieldwi/.test(u)));
 assert.ok(!extracted.some((u) => /boucher\.com\/icons/.test(u)));
+assert.ok(!extracted.some((u) => /lexusprogram/i.test(u)), "shortcut-icon Lexus L must not be extracted");
+assert.ok(!extracted.some((u) => /93a993986eb1971c0f310d12c7234d6f/i.test(u)), "lot-wide promo collage must not be extracted");
 
 const pack = toPack(cpo);
 assert.ok(photos.hasPhotoSource(pack));

@@ -12,12 +12,21 @@
 })(typeof self !== "undefined" ? self : this, function () {
   const MAX_PHOTOS = 20;
   const FETCH_CONCURRENCY = 4;
+  const REPEAT_MIN = 8;
+  const MIN_PHOTO_EDGE = 64;
+  const MIN_PHOTO_BYTES = 1024;
 
   const PHOTO_HOST_RE =
     /https:\/\/(?:vehicle-images\.carscommerce\.inc|[^\s"'<>]*\.carscommerce\.inc|pictures\.dealer\.com|images\.dealer\.com|imagescdn\.dealercarsearch\.com)\/[^\s"'<>]+/gi;
 
   const EXT_RE = /\.(webp|jpe?g|png)(?:$|\?)/i;
-  const SKIP_RE = /\/thumbnails?\/|\/icon|\/logo|\/sprite|1x1\.|pixel\.|placeholder/i;
+  const SKIP_RE =
+    /\/thumbnails?\/|\/icon|\/logo|\/sprite|1x1\.|pixel\.|placeholder|\/lexusprogram\/|favicon/i;
+  // Site favicon (20×20 L) and the lot-wide Brookfield promo collage.
+  const KNOWN_BRANDING_KEYS = new Set([
+    "5e2600a01524afb803de30925275cf48",
+    "93a993986eb1971c0f310d12c7234d6f",
+  ]);
 
   function text(v) {
     return String(v == null ? "" : v).trim();
@@ -27,12 +36,26 @@
     return String(url || "").split("#")[0];
   }
 
+  function photoKey(url) {
+    const u = normalizeUrl(url).split("?")[0].toLowerCase();
+    const base = (u.split("/").pop() || u).split("#")[0];
+    const hex = base.match(/^([a-f0-9]{32})x?\.(?:webp|jpe?g|png)$/i);
+    return hex ? hex[1].toLowerCase() : u;
+  }
+
+  function isBrandingPhotoUrl(url) {
+    const u = normalizeUrl(url);
+    if (!u || /^blob:/i.test(u) || /^data:/i.test(u)) return false;
+    if (SKIP_RE.test(u)) return true;
+    return KNOWN_BRANDING_KEYS.has(photoKey(u));
+  }
+
   function looksLikePhotoUrl(url) {
     const u = normalizeUrl(url);
     if (/^blob:/i.test(u) || /^data:image\//i.test(u)) return true;
     if (!/^https:\/\//i.test(u)) return false;
     if (!EXT_RE.test(u)) return false;
-    if (SKIP_RE.test(u)) return false;
+    if (isBrandingPhotoUrl(u)) return false;
     return (
       /vehicle-images\.carscommerce\.inc/i.test(u) ||
       /carscommerce\.inc/i.test(u) ||
@@ -42,18 +65,78 @@
     );
   }
 
+  function filterPhotoUrls(urls, { repeatedKeys } = {}) {
+    const skipKeys = repeatedKeys instanceof Set ? repeatedKeys : new Set(repeatedKeys || []);
+    const out = [];
+    const seen = new Set();
+    for (const raw of Array.isArray(urls) ? urls : []) {
+      const u = normalizeUrl(raw).replace(/&amp;/g, "&");
+      if (!u) continue;
+      if (/^blob:/i.test(u) || /^data:image\//i.test(u)) {
+        if (seen.has(u)) continue;
+        seen.add(u);
+        out.push(u);
+        if (out.length >= MAX_PHOTOS) break;
+        continue;
+      }
+      if (isBrandingPhotoUrl(u)) continue;
+      const key = photoKey(u);
+      if (skipKeys.has(key) || skipKeys.has(u)) continue;
+      if (seen.has(u) || seen.has(key)) continue;
+      seen.add(u);
+      seen.add(key);
+      out.push(u);
+      if (out.length >= MAX_PHOTOS) break;
+    }
+    return out;
+  }
+
+  function repeatedPhotoKeys(packs, minVehicles = REPEAT_MIN) {
+    const counts = new Map();
+    for (const p of Array.isArray(packs) ? packs : []) {
+      const seen = new Set();
+      for (const u of p?.photoUrls || []) {
+        if (isBrandingPhotoUrl(u)) continue;
+        const k = photoKey(u);
+        if (!k || seen.has(k)) continue;
+        seen.add(k);
+        counts.set(k, (counts.get(k) || 0) + 1);
+      }
+    }
+    const out = new Set();
+    const min = Number(minVehicles) > 0 ? Number(minVehicles) : REPEAT_MIN;
+    for (const [k, n] of counts) {
+      if (n >= min) out.add(k);
+    }
+    return out;
+  }
+
+  function dropRepeatedPhotos(packs, minVehicles = REPEAT_MIN) {
+    const rows = Array.isArray(packs) ? packs : [];
+    const repeatedKeys = repeatedPhotoKeys(rows, minVehicles);
+    return rows.map((p) => {
+      const urls = filterPhotoUrls(p?.photoUrls, { repeatedKeys });
+      return { ...p, photoUrls: urls, photoUrlCount: urls.length };
+    });
+  }
+
   function extractPhotoUrls(html) {
     const urls = [];
     const seen = new Set();
     const add = (raw) => {
       const u = normalizeUrl(raw).replace(/&amp;/g, "&");
       if (!looksLikePhotoUrl(u)) return;
-      if (seen.has(u)) return;
+      const key = photoKey(u);
+      if (seen.has(u) || seen.has(key)) return;
       seen.add(u);
+      seen.add(key);
       urls.push(u);
     };
 
-    const raw = String(html || "");
+    const raw = String(html || "").replace(
+      /<link\b[^>]*\brel\s*=\s*["'][^"']*icon[^"']*["'][^>]*>/gi,
+      ""
+    );
     PHOTO_HOST_RE.lastIndex = 0;
     let m;
     while ((m = PHOTO_HOST_RE.exec(raw))) {
@@ -73,9 +156,12 @@
     return urls.slice(0, MAX_PHOTOS);
   }
 
-  async function resolvePhotoUrls(pack, { fetchFn } = {}) {
+  async function resolvePhotoUrls(pack, { fetchFn, repeatedKeys } = {}) {
     const p = pack || {};
-    const cached = (Array.isArray(p.photoUrls) ? p.photoUrls : []).map(text).filter(looksLikePhotoUrl);
+    const cached = filterPhotoUrls(
+      (Array.isArray(p.photoUrls) ? p.photoUrls : []).map(text),
+      { repeatedKeys }
+    ).filter(looksLikePhotoUrl);
     let fromVdp = [];
     const doFetch = fetchFn || (typeof fetch === "function" ? fetch : null);
     if (p.vdpUrl && doFetch) {
@@ -87,16 +173,9 @@
       }
     }
 
-    const merged = [];
-    const seen = new Set();
-    for (const u of [...fromVdp, ...cached]) {
-      if (seen.has(u)) continue;
-      seen.add(u);
-      merged.push(u);
-      if (merged.length >= MAX_PHOTOS) break;
-    }
+    const urls = filterPhotoUrls([...fromVdp, ...cached], { repeatedKeys });
     return {
-      urls: merged,
+      urls,
       source: fromVdp.length ? "vdp" : cached.length ? "pack" : "",
       cached: cached.length,
       vdp: fromVdp.length,
@@ -182,6 +261,22 @@
     return `${stock}-${String(index + 1).padStart(2, "0")}.${ext}`;
   }
 
+  async function isTinyBrandingBlob(blob) {
+    if (!blob) return true;
+    const size = Number(blob.size) || 0;
+    if (typeof createImageBitmap === "function") {
+      try {
+        const bmp = await createImageBitmap(blob);
+        const tiny = Math.min(bmp.width || 0, bmp.height || 0) < MIN_PHOTO_EDGE;
+        bmp.close?.();
+        return tiny;
+      } catch {
+        return size > 0 && size < MIN_PHOTO_BYTES;
+      }
+    }
+    return size > 0 && size < MIN_PHOTO_BYTES;
+  }
+
   async function fetchOneBlob(url, { fetchFn, strip }) {
     const doFetch = fetchFn || fetch;
     const res = await doFetch(url, { credentials: "omit", cache: "force-cache", referrerPolicy: "no-referrer" });
@@ -242,6 +337,7 @@
     const rows = await mapPool(resolved.urls, FETCH_CONCURRENCY, async (url, idx) => {
       try {
         const { blob, stripped } = await fetchOneBlob(url, { fetchFn, strip });
+        if (await isTinyBrandingBlob(blob)) return { ok: false, skip: true, url };
         const name = fileNameFor(url, idx, stock, stripped);
         const type = stripped || /jpe?g/i.test(name) ? "image/jpeg" : blob.type || "image/jpeg";
         return { ok: true, blob, name, type, stripped, url };
@@ -249,15 +345,19 @@
         return { ok: false, error: String(e?.message || e), url };
       }
     });
-    const good = rows.filter((r) => r?.ok);
+    const good = rows.filter((r) => r?.ok).map((r, i) => ({
+      ...r,
+      name: fileNameFor(r.url, i, stock, r.stripped),
+    }));
+    const failed = rows.filter((r) => r && !r.ok && !r.skip);
     return {
       ok: good.length > 0,
       records: good,
       wanted: resolved.urls.length,
       stripped: good.filter((r) => r.stripped).length,
       source: resolved.source,
-      error: good.length ? "" : rows.find((r) => r && !r.ok)?.error || "Could not fetch photos",
-      missedUrls: rows.filter((r) => r && !r.ok).length,
+      error: good.length ? "" : failed[0]?.error || "Could not fetch photos",
+      missedUrls: failed.length,
     };
   }
 
@@ -293,6 +393,7 @@
 
   return {
     MAX_PHOTOS,
+    REPEAT_MIN,
     extractPhotoUrls,
     resolvePhotoUrls,
     hasPhotoSource,
@@ -302,5 +403,11 @@
     prepareTransfer,
     filesFromTransfer,
     looksLikePhotoUrl,
+    isBrandingPhotoUrl,
+    isTinyBrandingBlob,
+    photoKey,
+    filterPhotoUrls,
+    repeatedPhotoKeys,
+    dropRepeatedPhotos,
   };
 });

@@ -43,52 +43,45 @@
     return n ? n.toLocaleString("en-US") : "0";
   }
 
-  function stampDealerFees(pack, base, total) {
-    return {
-      ...(pack || {}),
-      basePrice: String(base),
-      serviceFee: String(SERVICE_FEE),
-      filingFee: String(FILING_FEE),
-      dealerFees: String(DEALER_FEES),
-      price: String(total),
-      priceIncludesDealerFees: true,
-    };
-  }
-
-  function withDealerFees(pack) {
+  function advertisedTotal(pack) {
+    if (typeof LotLinkerVdpPrice !== "undefined" && LotLinkerVdpPrice.advertisedTotal) {
+      const n = LotLinkerVdpPrice.advertisedTotal(pack);
+      if (n) return n;
+    }
     const p = pack && typeof pack === "object" ? pack : {};
-    const flagged = p.priceIncludesDealerFees === true || p.priceIncludesDealerFees === "true";
-    let base = money(p.basePrice);
-    let total = money(p.price);
-    const siteAsking = money(p.askingPrice);
-    const siteTotal = money(p.totalSalePrice || p.internetPrice);
-
-    if (flagged && base) {
-      return stampDealerFees(p, base, base + DEALER_FEES);
-    }
-    if (flagged && total) {
-      const inferred = total - DEALER_FEES;
-      if (inferred > 0) return stampDealerFees(p, inferred, total);
-    }
-    if (base) return stampDealerFees(p, base, base + DEALER_FEES);
-    if (siteAsking && siteTotal === siteAsking + DEALER_FEES) {
-      return stampDealerFees(p, siteAsking, siteTotal);
-    }
-    if (siteAsking) return stampDealerFees(p, siteAsking, siteAsking + DEALER_FEES);
-    if (siteTotal) {
-      const inferred = siteTotal - DEALER_FEES;
-      if (inferred > 0) return stampDealerFees(p, inferred, siteTotal);
-    }
-    if (!total) return { ...p };
-    return stampDealerFees(p, total, total + DEALER_FEES);
-  }
-
-  function advertisedPrice(pack) {
-    return withDealerFees(pack).price || "";
+    if (p.priceMissing === true || p.priceMissing === "true") return 0;
+    const labeled = money(p.totalSalePrice);
+    if (labeled) return labeled;
+    const src = text(p.priceSource);
+    if (src && src !== "missing" && src !== "computed") return money(p.price);
+    return 0;
   }
 
   function advertisedPack(pack) {
-    return withDealerFees(pack);
+    const p = pack && typeof pack === "object" ? { ...pack } : {};
+    const total = advertisedTotal(p);
+    if (!total) {
+      return {
+        ...p,
+        price: "",
+        priceMissing: true,
+      };
+    }
+    return {
+      ...p,
+      price: String(total),
+      totalSalePrice: String(p.totalSalePrice || total),
+      priceMissing: false,
+    };
+  }
+
+  function advertisedPrice(pack) {
+    const n = advertisedTotal(pack);
+    return n ? String(n) : "";
+  }
+
+  function withDealerFees(pack) {
+    return advertisedPack(pack);
   }
 
   function formatMileage(pack) {
@@ -108,7 +101,8 @@
   function pickerLabel(pack) {
     const p = advertisedPack(pack);
     const name = [p.year, p.make, p.model, p.trim].map(text).filter(Boolean).join(" ");
-    return [text(p.stock), name, mileageLabel(p), `$${formatPrice(p.price)}`].filter(Boolean).join(" · ");
+    const priceBit = p.priceMissing || !money(p.price) ? "PRICE MISSING" : `$${formatPrice(p.price)}`;
+    return [text(p.stock), name, mileageLabel(p), priceBit].filter(Boolean).join(" · ");
   }
 
   function vehicleType(pack) {
@@ -466,14 +460,19 @@
     return fromPack(researched);
   }
 
+  function pricePhrase(pack) {
+    const n = advertisedTotal(pack);
+    return n ? `$${formatPrice(n)}` : "";
+  }
+
   function buildTitle(pack) {
     const p = advertisedPack(pack);
     const name = [p.year, p.make, p.model, p.trim].map(text).filter(Boolean).join(" ");
     const spec = keySpec(p);
-    const price = formatPrice(p.price);
+    const price = pricePhrase(p);
     const parts = [name];
     if (spec) parts.push(spec);
-    parts.push(`$${price}`);
+    if (price) parts.push(price);
     parts.push(CITY_TITLE);
     return parts.join(" | ");
   }
@@ -483,11 +482,11 @@
     const p = advertisedPack(pack);
     const name = [p.model, p.trim].map(text).filter(Boolean).join(" ");
     const spec = keySpec(p);
-    const price = formatPrice(p.price);
+    const price = pricePhrase(p);
     const parts = [];
     if (name) parts.push(name);
     if (spec) parts.push(spec);
-    parts.push(`$${price}`);
+    if (price) parts.push(price);
     parts.push(CITY_TITLE);
     return parts.join(" | ");
   }
@@ -495,7 +494,7 @@
   function buildDescription(pack) {
     const p = advertisedPack(pack);
     const type = vehicleType(p);
-    const price = formatPrice(p.price);
+    const price = pricePhrase(p);
     const ymm = [p.year, p.make, p.model].map(text).filter(Boolean).join(" ");
     const store = storeName(p);
     const ymmLine = isCertified(p)
@@ -507,13 +506,17 @@
     const modelMsg = shortModel(p.model);
     const featureLines = features.map((f) => `• ${f}`).join("\n");
     const equipmentBlock = features.length ? `Key equipment:\n${featureLines}` : "Key equipment:";
+    const shopper = price
+      ? `Wisconsin shoppers looking for a ${type} under ${price}:`
+      : `Wisconsin shoppers looking for a ${type}:`;
+    const priceLine = price ? `Price: ${price}` : "Price: [need Total Sale Price from dealer site]";
 
     return [
-      `Wisconsin shoppers looking for a ${type} under $${price}:`,
+      shopper,
       "",
       ymmLine,
       "",
-      `Price: $${price}`,
+      priceLine,
       `Mileage: ${miles}`,
       `Stock #: ${stock}`,
       "",
@@ -548,6 +551,7 @@
     DEALER_FEES,
     money,
     withDealerFees,
+    advertisedTotal,
     advertisedPrice,
     advertisedPack,
     buildTitle,

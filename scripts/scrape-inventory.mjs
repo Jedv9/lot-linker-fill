@@ -24,10 +24,12 @@ import {
   toPack,
   vehiclesFromListingHtml,
 } from "./dealer-inventory.mjs";
-import { header, isRetryableHttp, retryDelayMs } from "./http-retry.mjs";
+import { header, isBlockedHttp, isRetryableHttp, retryDelayMs } from "./http-retry.mjs";
+import { overlayLiveTotals } from "./refresh-vdp-prices.mjs";
 
 const require = createRequire(import.meta.url);
 const soldWatch = require("../sold-watch.js");
+const photos = require("../photos.js");
 
 const PAGE_SIZE = 24;
 const SUCCESS_GAP_MS = 8000;
@@ -101,6 +103,17 @@ async function gotoWithRetry(page, url) {
     const resp = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
     lastStatus = resp?.status?.() || 0;
     const html = await page.content();
+    if (isBlockedHttp(lastStatus)) {
+      if (attempt >= 1) {
+        const err = new Error(`blocked fetching ${url} (last HTTP ${lastStatus})`);
+        err.blocked = true;
+        err.status = lastStatus;
+        throw err;
+      }
+      console.log(`HTTP ${lastStatus} ${url} — datacenter likely blocked, retry once`);
+      await page.waitForTimeout(8000);
+      continue;
+    }
     if (!isRetryableHttp(lastStatus, html) && html.length > 2000) {
       return { resp, html, status: lastStatus };
     }
@@ -110,7 +123,10 @@ async function gotoWithRetry(page, url) {
     if (attempt === MAX_RETRIES) break;
     await page.waitForTimeout(delay);
   }
-  throw new Error(`blocked fetching ${url} (last HTTP ${lastStatus}) after Retry-After/backoff`);
+  const err = new Error(`blocked fetching ${url} (last HTTP ${lastStatus}) after Retry-After/backoff`);
+  err.blocked = isBlockedHttp(lastStatus);
+  err.status = lastStatus;
+  throw err;
 }
 
 function listingUrl(base, { start, make, pageSize } = {}) {
@@ -260,6 +276,13 @@ async function main() {
     } catch (e) {
       errors.push(`${source.name}: ${e.message || e}`);
       console.error(e);
+      if (e?.blocked || e?.status === 403) {
+        console.warn(
+          "Dealer site blocked this GitHub runner (HTTP 403). Keeping existing packs.json. Refresh packs in the Chrome extension — Jed's browser is not blocked like Actions datacenters."
+        );
+        await browser.close();
+        process.exit(0);
+      }
     }
   }
 
@@ -289,7 +312,7 @@ async function main() {
     process.exit(2);
   }
 
-  const packs = vehicles.map(toPack);
+  const packs = photos.dropRepeatedPhotos(vehicles.map(toPack));
   if (packs.some((p) => /lake country|boucher|nissanlakecountry|hyundailakecountry/i.test(p.rooftop + p.vdpUrl))) {
     await browser.close();
     throw new Error("Refusing to write old-dealership URLs into packs.json");
@@ -303,6 +326,10 @@ async function main() {
     pk.keyEquipment = buildKeyEquipment(pk.features || [], pk);
   }
   await browser.close();
+
+  const priced = await overlayLiveTotals(packs);
+  packs.splice(0, packs.length, ...priced.packs);
+  console.log(`VDP Total Sale Price overlay: ${priced.found} found, ${priced.missing} missing`);
 
   const generatedAt = new Date().toISOString();
   const snapshot = soldWatch.buildSoldSnapshot({
@@ -331,6 +358,9 @@ async function main() {
     soldSinceLast: sold.length,
     sold,
     soldHistory,
+    priceNote: "price is the live VDP Total Sale Price; never computed as asking + fees",
+    vdpPriceFound: priced.found,
+    vdpPriceMissing: priced.missing,
     packs,
   };
   fs.writeFileSync("packs.json", JSON.stringify(out));

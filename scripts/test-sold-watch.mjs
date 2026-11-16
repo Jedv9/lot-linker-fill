@@ -184,28 +184,29 @@ const ranked = sold.sortSoldForDisplay(
 );
 assert.equal(ranked[0].stock, "PMT3253");
 
-const oldOverride = {
-  stock: "PMT3253",
-  year: "2024",
+const vdpTotalPack = {
+  stock: "PER3178",
+  year: "2025",
   make: "Lexus",
-  model: "NX",
-  trim: "350 Premium",
-  price: "43999",
+  model: "ES",
+  trim: "350",
+  price: "46815",
+  totalSalePrice: "46815",
+  priceSource: "vdp-visible",
   rooftop: "Lexus of Brookfield",
 };
-const once = listing.withDealerFees(oldOverride);
+const once = listing.withDealerFees(vdpTotalPack);
 assert.equal(listing.DEALER_FEES, 517);
-assert.equal(once.price, "44516");
-assert.equal(Number(once.basePrice) + 517, Number(once.price));
-assert.equal(listing.withDealerFees(once).price, "44516");
+assert.equal(once.price, "46815");
+assert.notEqual(Number(once.basePrice || 0) + 517, 46815);
+assert.equal(listing.withDealerFees(once).price, "46815");
 const soldFromFeePack = sold.soldRowFromPack(once, now);
-assert.equal(soldFromFeePack.lastPrice, "44516");
+assert.equal(soldFromFeePack.lastPrice, "46815");
 
 for (const p of packsDoc.packs) {
-  if (!p.priceIncludesDealerFees) continue;
-  const again = listing.withDealerFees(p);
-  assert.equal(again.price, p.price, `fees must stay exact-once on ${p.stock}`);
-  assert.equal(Number(again.basePrice) + 517, Number(again.price));
+  const again = listing.advertisedPack(p);
+  if (p.priceMissing || !p.totalSalePrice) continue;
+  assert.equal(again.price, p.totalSalePrice, `VDP total must not be recomputed on ${p.stock}`);
 }
 
 assert.ok(Array.isArray(packsDoc.soldHistory));
@@ -220,7 +221,10 @@ assert.ok(scraper.indexOf("if (!gate.write)") < scraper.indexOf("buildSoldSnapsh
 assert.match(popupHtml, /Sold — take these down/);
 assert.match(popupHtml, /id="soldSection"/);
 assert.match(popupHtml, /sold-watch\.js/);
-assert.match(popupHtml, /Listed on Marketplace/);
+assert.match(popupHtml, /Posted on Marketplace/);
+assert.match(popupHtml, /id="tabPosted"/);
+assert.match(popup, /listTab/);
+assert.match(popup, /postedPacks|tabPosted/);
 assert.match(popup, /soldWatch/);
 assert.match(popup, /soldDismissed/);
 assert.match(popup, /lastSeenSummaries/);

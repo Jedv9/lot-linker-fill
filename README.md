@@ -16,9 +16,9 @@ This build is pre-owned only. New Lexus inventory is not loaded. Pre-owned inclu
 ## Use
 1. Open Facebook Marketplace → create **vehicle** listing (`/marketplace/create/vehicle` or equivalent)
 2. Open the extension, search by stock / VIN / model — each row shows mileage and price
-3. Click **Fill** (Vehicle type Car/Truck first, then Year, Make, Price, Mileage, body, colors, fuel, Location, Model, description, photos). Fill types **Brookfield, Wisconsin** into the Marketplace Location typeahead and picks that suggestion (dealer: 20001 W Bluemound Rd, Brookfield, WI 53045) so the listing is not left on the Facebook profile default city. Fill also marks that stock as listed on Marketplace. Status reports `location` in filled or missed.
+3. Click **Fill** (Vehicle type Car/Truck first, then Year, Make, Price, Mileage, body, colors, fuel, Location, Model, description, photos). Fill reads that car’s live VDP **Total Sale Price** immediately before writing Price, types **Brookfield, Wisconsin** into the Marketplace Location typeahead, and picks that suggestion (dealer: 20001 W Bluemound Rd, Brookfield, WI 53045). Fill also checks **Posted on Marketplace**, which moves the stock to the **Posted** tab. Status reports `location` in filled or missed.
 4. You click Post — the extension never publishes
-5. When a listed car leaves the Brookfield site, **Sold — take these down** shows year/make/model/trim, stock, VIN last 6, last advertised total price, and the date it was detected gone. Click **Taken down** after you remove the Facebook listing. The toolbar icon badge is the count still waiting. Use **Listed on Marketplace** on a stock if you listed it without Fill.
+5. The **Lot** tab is cars not yet posted. **Posted** shows stocks you checked (uncheck to move them back). Counts are on each tab. When a posted car leaves the Brookfield site, **Sold — take these down** still lists it until you click **Taken down**.
 
 Jed should not download photos separately. **Save photos (fallback)** is only if Marketplace’s picker misses (Facebook UI change / no file input).
 
@@ -27,7 +27,7 @@ Model line and description are generated at fill time from pack fields (`year`, 
 ## Model line (Facebook vehicle create)
 `{Model} {Trim} | {engine or drivetrain or body} | ${price} | Brookfield WI`
 
-Example: `NX 350 Premium | AWD | $44,516 | Brookfield WI` — no year, no make in this string. Year and Make are filled in their own dropdowns. Price field gets digits only (`44516`), not `$44,516`. Advertised price is the dealer **Total Sale Price**: vehicle price plus the confirmed $479 service fee and $38 filing fee ($517). Sales tax, title, and registration are not added.
+Example: `NX 350 Premium | AWD | $44,516 | Brookfield WI` — no year, no make in this string. Year and Make are filled in their own dropdowns. Price field gets digits only (`44516`), not `$44,516`. Advertised price is the exact **Total Sale Price** shown on that car’s Lexus of Brookfield VDP (that number already includes the $479 service fee and $38 filing fee). Refresh does not add $479 + $38 to another field. Sales tax, title, and registration are not added.
 
 ## Title
 Still built as `{Year} {Make} {Model} {Trim} | {engine or drivetrain or body} | ${price} | Brookfield WI` for preview / other use. Vehicle listings do not have a Title field.
@@ -38,14 +38,14 @@ Multi-line Wisconsin shopper copy: vehicle type, Lexus of Brookfield, price, mil
 If a stock has fewer than 5 verified hits, the popup researches that vehicle’s VDP (`vdpUrl`) and NHTSA VIN decode (AWD/4WD only), 10s timeout, then falls back to pack features.
 
 ## Photos
-Fill fetches unit photos from pack `photoUrls` and/or the VDP page (`pictures.dealer.com` and a few dealer CDNs). A red dealer banner is cropped only when that banner is actually detected — Brookfield unit photos are not force-cropped. Status reports `filled model · description · N photos` or `missed: photos` with a reason.
+Fill fetches unit photos from pack `photoUrls` and/or the VDP page (`pictures.dealer.com` and a few dealer CDNs). Branding is dropped: the site favicon (20×20 Lexus L under `/lexusprogram/`), any `/logo`/`favicon` URL, tiny images, and the same photo URL repeated across many vehicles (the Brookfield promo collage). Real vehicle photos stay in order. A red dealer banner is cropped only when that banner is actually detected — Brookfield unit photos are not force-cropped. Status reports `filled model · description · N photos` or `missed: photos` with a reason.
 
 The service worker does the fetch so Facebook is not sent as `Referer`. Host permissions cover the Lexus of Brookfield site and photo CDNs. The content script waits/retries for the photo picker (slow create-page loads) and never clicks Post / Publish / Next.
 
 Facebook caveats: the picker is often a hidden file input behind “Add photos”. Marketplace may cap how many images stick; extras are dropped by FB, not posted. If the composer has not reached the vehicle photo step, Fill reports a missed photo picker — stay on create/vehicle and retry.
 
 ## Packs
-Bundled `packs.json` loads on open. **Refresh packs** pulls the latest `packs.json` from this repo (optional `chrome.storage` override). Packs from the old Lake Country rooftops are ignored so they cannot silently replace Brookfield inventory. Refresh also compares the stock numbers the extension had stored before against the new file and adds anything that vanished to the sold list (even if `packs.json` `sold` missed it). Incomplete remotes are skipped so a partial pull is never treated as a mass sale.
+Bundled `packs.json` loads on open as a seed only. **Refresh packs** opens the live [used-inventory](https://www.lexusofbrookfield.com/used-inventory/index.htm) search results (every `?start=` page) in background browser tabs, then opens each vehicle’s VDP (`/certified/` and `/used/`) the same way and reads the rendered **Total Sale Price** from the pricing widget (the `$` and the number may be on separate lines). It does **not** add $479 + $38 to another field and does **not** keep a stale GitHub price. New stocks appear; stocks that vanished go to **Sold**. If Total Sale Price cannot be found, that stock is flagged (`PRICE MISSING`) with a short reason (asking-only, timeout, HTTP status) and Fill will not write a computed price. Incomplete used-inventory pulls are skipped so a partial pull is never treated as a mass sale. Packs from the old Lake Country rooftops are ignored.
 
 `packs.json` keeps a rolling `soldHistory` (about 60 days, with `detectedAt`) plus the last-run `sold` / `soldSinceLast` lists. The popup keeps undismissed rows in `chrome.storage` until Jed clicks **Taken down**.
 
@@ -54,9 +54,9 @@ Weekly GitHub Action: `scripts/scrape-inventory.mjs` reads the public dealer.com
 - Pre-owned (all makes): https://www.lexusofbrookfield.com/used-inventory/index.htm
 - L/Certified: https://www.lexusofbrookfield.com/l-certified-inventory/index.htm
 
-Completeness is the used-inventory total (`Browse our inventory of N` / make-facet sum), currently 110 across 24 makes. CPO units are a subset of that pre-owned lot. The HTML sitemap is **not** a complete inventory export (Lexus CPO/used only). New inventory (`/new-inventory/index.htm`, `/new/`, `/electric-new/`) is excluded. VDP URLs look like `/used/{Make}/{Year}-{Make}-{Model}-{id}.htm` and `/certified/LEXUS/...` (hybrids may use `/electric-certified/`).
+Completeness is the used-inventory total (`Browse our inventory of N` / make-facet sum). CPO units are a subset of that pre-owned lot. The HTML sitemap is **not** a complete inventory export (Lexus CPO/used only). New inventory (`/new-inventory/index.htm`, `/new/`, `/electric-new/`) is excluded. VDP URLs look like `/used/{Make}/{Year}-{Make}-{Model}-{id}.htm` and `/certified/LEXUS/...` (hybrids may use `/electric-certified/`).
 
-The scraper honors HTTP 429 `Retry-After` and exponential backoff. It paginates, dedupes by VIN/stock, and **will not overwrite** `packs.json` with a partial collection. A 429 from this environment is not proof that GitHub Actions will succeed.
+The scraper honors HTTP 429 `Retry-After` and exponential backoff. GitHub datacenters often get **HTTP 403** from dealer.com; the Action fails fast on 403, keeps the previous `packs.json`, and exits 0 (the extension Refresh path is the live source of truth). It paginates, dedupes by VIN/stock, and **will not overwrite** `packs.json` with a partial collection.
 
 Local refresh:
 
@@ -72,15 +72,16 @@ If the public listing is blocked, a dealer-provided inventory export/feed (CSV/J
 ```
 bash scripts/build-zip.sh
 ```
-Writes `dist/LotLinker.zip` (use this on Windows), plus `dist/lot-linker-fill-2.5.1.zip` and `dist/lot-linker-fill.zip`. Unzip and Load unpacked on the `lot-linker-fill` folder inside.
+Writes `dist/LotLinker.zip` (use this on Windows), plus `dist/lot-linker-fill-2.7.1.zip` and `dist/lot-linker-fill.zip`. Unzip and Load unpacked on the `lot-linker-fill` folder inside.
 
 ## Tests
 ```
 npm test
+npm run test:e2e
 npm run test:fixtures
 ```
 
 ## Version
-2.5.1
+2.7.1
 
 One-click Fill **first** sets **Vehicle type** to **Car/Truck** (Year/Make/etc. will not take until this is set), then writes **Year**, **Make**, **Price**, **Mileage**, **Body style**, **Exterior color**, **Interior color**, **Fuel type**, **Location** (types Brookfield, Wisconsin and picks that suggestion), **Model** title line, **Description**, and **photos**. **VIN is never written**. Clean title and vehicle condition are never written. Description fill still walks Facebook’s vehicle-create markup. Comboboxes open then click a matching `[role=option]`. Price and Mileage use digits only. Location is retried like the other fields. The extension never clicks Post / Publish / Next.

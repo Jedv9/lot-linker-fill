@@ -25,7 +25,12 @@ export function retryDelayMs(headers, attempt = 0, { baseMs = 4000, capMs = 6000
   return Math.min(capMs, Math.max(baseMs, exp));
 }
 
+export function isBlockedHttp(status) {
+  return status === 403 || status === 401;
+}
+
 export function isRetryableHttp(status, body = "") {
+  if (isBlockedHttp(status)) return false;
   if (status === 429 || status === 503) return true;
   const text = String(body || "");
   return text.length < 8000 && /too many requests/i.test(text);
