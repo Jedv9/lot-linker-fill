@@ -5,6 +5,7 @@ let researchStock = null;
 let soldWatch = [];
 let soldDismissed = {};
 let listedStocks = {};
+let listTab = "lot";
 
 const $ = (id) => document.getElementById(id);
 const status = (t) => { $("status").textContent = t || ""; };
@@ -77,6 +78,7 @@ async function overlayVdpTotals(list) {
           credentials: "omit",
           headers: { accept: "text/html,application/xhtml+xml" },
         });
+        if (res.status === 403 || res.status === 401) return "";
         if (res.status === 429 || res.status === 503) {
           const ra = Number(res.headers.get("retry-after") || 0);
           const wait = ra > 0 ? ra * 1000 : 8000 * 2 ** attempt;
@@ -221,6 +223,7 @@ async function setListed(stock, on) {
   listedStocks = api.toggleListed(listedStocks, stock, on);
   await chrome.storage.local.set({ listedStocks });
   renderSold();
+  renderList();
 }
 
 async function loadBundled() {
@@ -290,15 +293,38 @@ function fillStoreFilter() {
   sel.value = stores.includes(prev) ? prev : "";
 }
 
+function isPosted(pack) {
+  const api = soldApi();
+  return api ? api.isListed(listedStocks, pack?.stock) : false;
+}
+
+function postedPacks() {
+  return packs.filter((p) => isPosted(p));
+}
+
+function lotPacks() {
+  return packs.filter((p) => !isPosted(p));
+}
+
 function applyFilters() {
   const q = ($("q")?.value || "").trim().toLowerCase();
   const store = $("fStore")?.value || "";
-  return packs.filter((p) => {
+  const pool = listTab === "posted" ? postedPacks() : lotPacks();
+  return pool.filter((p) => {
     if (store && (p.rooftop || "") !== store) return false;
     if (!q) return true;
     const hay = [p.stock, p.vin, p.year, p.make, p.model, p.trim].join(" ").toLowerCase();
     return hay.includes(q);
   });
+}
+
+function updateTabCounts() {
+  const lotEl = $("lotCount");
+  const postedEl = $("postedCount");
+  if (lotEl) lotEl.textContent = String(lotPacks().length);
+  if (postedEl) postedEl.textContent = String(postedPacks().length);
+  $("tabLot")?.classList.toggle("on", listTab === "lot");
+  $("tabPosted")?.classList.toggle("on", listTab === "posted");
 }
 
 function packPickerLabel(pack) {
@@ -319,8 +345,12 @@ function renderList() {
     opt.textContent = packPickerLabel(p);
     list.appendChild(opt);
   }
-  if (!filtered.length) status("No matches");
-  else status(`${filtered.length} shown · ${packs.length} total`);
+  updateTabCounts();
+  if (!filtered.length) {
+    status(listTab === "posted" ? "No posted cars" : "No matches");
+  } else {
+    status(`${filtered.length} shown · ${lotPacks().length} on lot · ${postedPacks().length} posted`);
+  }
   if (selected && !filtered.some((p) => p.stock === selected.stock)) showPack(null);
 }
 
@@ -347,7 +377,7 @@ function renderListing(pack) {
   const listed = $("listedOnFb");
   if (listed) {
     const api = soldApi();
-    listed.checked = api ? api.isListed(listedStocks, pack?.stock) : false;
+    listed.checked = isPosted(pack);
   }
 }
 
@@ -392,6 +422,12 @@ function showPack(p) {
 
 $("q").addEventListener("input", () => renderList());
 $("fStore")?.addEventListener("change", () => renderList());
+$("lotTabs")?.addEventListener("click", (e) => {
+  const btn = e.target?.closest?.("button[data-tab]");
+  if (!btn?.dataset?.tab) return;
+  listTab = btn.dataset.tab === "posted" ? "posted" : "lot";
+  renderList();
+});
 $("list").addEventListener("change", () => {
   const p = packs.find((x) => x.stock === $("list").value);
   showPack(p || null);
@@ -414,12 +450,18 @@ $("fill").onclick = async () => {
     return status("Open a facebook.com Marketplace create tab first");
   }
   try {
-    const pack = withDealerFees(await ensureResearched(selected));
+    status("Reading live Total Sale Price from dealer VDP…");
+    const overlay = await overlayVdpTotals([selected]);
+    let pack = overlay.packs[0] || selected;
+    pack = withDealerFees(await ensureResearched(pack));
+    const idx = packs.findIndex((p) => p.stock === pack.stock);
+    if (idx >= 0) packs[idx] = pack;
     if (pack.priceMissing || !(typeof LotLinkerListing !== "undefined" && LotLinkerListing.advertisedPrice(pack))) {
       status("Total Sale Price missing on dealer site — not filling a computed price");
     }
     selected = pack;
     renderListing(pack);
+    await chrome.storage.local.set({ packsOverride: packs });
     const res = await chrome.tabs.sendMessage(tab.id, { type: "LOT_LINKER_FILL", pack });
     if (res?.ok) {
       await setListed(pack.stock, true);
@@ -445,49 +487,55 @@ $("fill").onclick = async () => {
 };
 
 $("refreshInventory").onclick = async () => {
-  const url = (typeof LOT_LINKER_PACKS_URL !== "undefined" && LOT_LINKER_PACKS_URL)
-    ? LOT_LINKER_PACKS_URL
-    : "https://raw.githubusercontent.com/Jedv9/lot-linker-fill/main/packs.json";
-  status("Refreshing packs from GitHub…");
+  const liveApi = typeof LotLinkerInventory !== "undefined" ? LotLinkerInventory : null;
+  if (!liveApi?.collectUsedInventory) {
+    status("Refresh failed: live inventory module missing");
+    return;
+  }
+  status("Reading live used inventory from lexusofbrookfield.com…");
   try {
-    const res = await fetch(`${url}?t=${Date.now()}`);
-    if (!res.ok) {
-      status(`Refresh failed: HTTP ${res.status}`);
-      return;
-    }
-    const data = await res.json();
-    const remote = currentDealerPacks(Array.isArray(data) ? data : (data.packs || []));
-    if (!remote.length) {
-      status("Refresh failed: no Lexus of Brookfield pre-owned packs in remote JSON");
+    const lot = await liveApi.collectUsedInventory({
+      onProgress: ({ i, total, count, expectedTotal }) => {
+        status(`Reading used inventory ${i + 1}/${total}${count != null ? ` · ${count}` : ""}${expectedTotal ? ` of ${expectedTotal}` : ""}`);
+      },
+      gapMs: 400,
+    });
+    if (!lot.packs.length) {
+      status("Refresh failed: no vehicles on used-inventory");
       return;
     }
     const api = soldApi();
-    const previousCount = packs.length;
     const trusted = !api || api.isTrustedComplete({
-      complete: data.complete,
-      expectedTotal: data.expectedTotal,
-      nextCount: remote.length,
-      previousCount,
+      complete: lot.complete,
+      expectedTotal: lot.expectedTotal,
+      nextCount: lot.packs.length,
+      previousCount: packs.length,
     });
     if (!trusted) {
-      status("Refresh skipped: remote packs look incomplete (not treating as mass sold)");
+      status(`Refresh skipped: used-inventory incomplete (${lot.count}/${lot.expectedTotal || "?"}) — not treating as mass sold`);
       return;
     }
-    status(`Reading live Total Sale Price for ${remote.length} vehicles…`);
-    const overlay = await overlayVdpTotals(remote);
+    const merged = liveApi.mergeLiveWithPrevious(packs, lot.packs);
+    status(`Reading live Total Sale Price for ${merged.length} vehicles…`);
+    const overlay = await overlayVdpTotals(merged);
     const previousPacks = packs;
     packs = normalizePacks(overlay.packs);
     const at = new Date().toISOString();
     await persistSoldState({
       previousPacks,
       nextPacks: packs,
-      payload: payloadMeta(data),
+      payload: {
+        complete: lot.complete,
+        expectedTotal: lot.expectedTotal,
+        soldHistory: [],
+        sold: [],
+      },
       now: at,
     });
     await chrome.storage.local.set({
       packsOverride: packs,
       packsRefreshedAt: at,
-      packsSource: url,
+      packsSource: lot.source,
     });
     fillStoreFilter();
     renderList();
@@ -500,9 +548,13 @@ $("refreshInventory").onclick = async () => {
     const gone = soldApi()?.undismissedCount(soldWatch, soldDismissed) || 0;
     const missing = overlay.missing ? ` · ${overlay.missing} missing Total Sale Price` : "";
     const goneBit = gone ? ` · ${gone} sold to take down` : "";
-    status(`Refreshed ${packs.length} packs · ${overlay.found} live Total Sale Price${missing} · ${new Date(at).toLocaleString()}${goneBit}`);
+    status(`Refreshed ${packs.length} from used-inventory · ${overlay.found} live Total Sale Price${missing}${goneBit}`);
   } catch (e) {
-    status(`Refresh failed: network error (${e?.message || e})`);
+    if (e?.blocked || e?.status === 403) {
+      status("Refresh failed: dealer site blocked this request (HTTP 403)");
+      return;
+    }
+    status(`Refresh failed: ${e?.message || e}`);
   }
 };
 

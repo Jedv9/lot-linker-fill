@@ -24,7 +24,7 @@ import {
   toPack,
   vehiclesFromListingHtml,
 } from "./dealer-inventory.mjs";
-import { header, isRetryableHttp, retryDelayMs } from "./http-retry.mjs";
+import { header, isBlockedHttp, isRetryableHttp, retryDelayMs } from "./http-retry.mjs";
 import { overlayLiveTotals } from "./refresh-vdp-prices.mjs";
 
 const require = createRequire(import.meta.url);
@@ -103,6 +103,17 @@ async function gotoWithRetry(page, url) {
     const resp = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
     lastStatus = resp?.status?.() || 0;
     const html = await page.content();
+    if (isBlockedHttp(lastStatus)) {
+      if (attempt >= 1) {
+        const err = new Error(`blocked fetching ${url} (last HTTP ${lastStatus})`);
+        err.blocked = true;
+        err.status = lastStatus;
+        throw err;
+      }
+      console.log(`HTTP ${lastStatus} ${url} — datacenter likely blocked, retry once`);
+      await page.waitForTimeout(8000);
+      continue;
+    }
     if (!isRetryableHttp(lastStatus, html) && html.length > 2000) {
       return { resp, html, status: lastStatus };
     }
@@ -112,7 +123,10 @@ async function gotoWithRetry(page, url) {
     if (attempt === MAX_RETRIES) break;
     await page.waitForTimeout(delay);
   }
-  throw new Error(`blocked fetching ${url} (last HTTP ${lastStatus}) after Retry-After/backoff`);
+  const err = new Error(`blocked fetching ${url} (last HTTP ${lastStatus}) after Retry-After/backoff`);
+  err.blocked = isBlockedHttp(lastStatus);
+  err.status = lastStatus;
+  throw err;
 }
 
 function listingUrl(base, { start, make, pageSize } = {}) {
@@ -262,6 +276,13 @@ async function main() {
     } catch (e) {
       errors.push(`${source.name}: ${e.message || e}`);
       console.error(e);
+      if (e?.blocked || e?.status === 403) {
+        console.warn(
+          "Dealer site blocked this GitHub runner (HTTP 403). Keeping existing packs.json. Refresh packs in the Chrome extension — Jed's browser is not blocked like Actions datacenters."
+        );
+        await browser.close();
+        process.exit(0);
+      }
     }
   }
 

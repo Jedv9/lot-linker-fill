@@ -4,7 +4,7 @@
  */
 import fs from "node:fs";
 import { createRequire } from "node:module";
-import { header, isRetryableHttp, retryDelayMs, sleep } from "./http-retry.mjs";
+import { header, isBlockedHttp, isRetryableHttp, retryDelayMs, sleep } from "./http-retry.mjs";
 
 const require = createRequire(import.meta.url);
 const vdpPrice = require("../vdp-price.js");
@@ -24,6 +24,10 @@ export async function fetchVdpHtml(url, { fetchFn = fetch } = {}) {
     const res = await fetchFn(url, { headers: VDP_HEADERS });
     lastStatus = res.status;
     const html = await res.text();
+    if (isBlockedHttp(lastStatus)) {
+      console.log(`VDP HTTP ${lastStatus} ${url} — runner blocked; leaving Total Sale Price missing`);
+      return "";
+    }
     if (!isRetryableHttp(lastStatus, html) && html.length > 1500) return html;
     if (attempt === MAX_RETRIES) break;
     const headers = typeof res.headers?.entries === "function" ? Object.fromEntries(res.headers.entries()) : {};
@@ -31,7 +35,8 @@ export async function fetchVdpHtml(url, { fetchFn = fetch } = {}) {
     console.log(`VDP HTTP ${lastStatus} ${url} — wait ${delay}ms (Retry-After=${header(headers, "retry-after") || "none"})`);
     await sleep(delay);
   }
-  throw new Error(`blocked fetching ${url} (last HTTP ${lastStatus})`);
+  console.log(`VDP give up ${url} (last HTTP ${lastStatus}); leaving Total Sale Price missing`);
+  return "";
 }
 
 export async function overlayLiveTotals(packs, { fetchFn = fetch, onProgress } = {}) {

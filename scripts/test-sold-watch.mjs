@@ -221,7 +221,10 @@ assert.ok(scraper.indexOf("if (!gate.write)") < scraper.indexOf("buildSoldSnapsh
 assert.match(popupHtml, /Sold — take these down/);
 assert.match(popupHtml, /id="soldSection"/);
 assert.match(popupHtml, /sold-watch\.js/);
-assert.match(popupHtml, /Listed on Marketplace/);
+assert.match(popupHtml, /Posted on Marketplace/);
+assert.match(popupHtml, /id="tabPosted"/);
+assert.match(popup, /listTab/);
+assert.match(popup, /postedPacks|tabPosted/);
 assert.match(popup, /soldWatch/);
 assert.match(popup, /soldDismissed/);
 assert.match(popup, /lastSeenSummaries/);

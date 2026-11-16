@@ -37,6 +37,10 @@
     button.taken { background: #334155; color: #e2e8f0; font-size: 11px; padding: 5px 8px; }
     .listed-flag { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #cbd5e1; margin-top: 8px; }
     .listed-flag input { width: auto; margin: 0; }
+    .tabs { display: flex; gap: 6px; }
+    .tab { flex: 1; background: #1e293b; color: #94a3b8; font-size: 12px; }
+    .tab.on { background: #0ea5e9; color: #04111a; }
+    .tab .n { font-weight: 700; }
   </style>
 </head>
 <body>
@@ -48,6 +52,10 @@
     <div id="soldSection" class="card sold" hidden>
       <div class="sold-head">Sold — take these down <span class="sold-count" id="soldCount"></span></div>
       <div class="sold-list" id="soldList"></div>
+    </div>
+    <div class="tabs" id="lotTabs">
+      <button type="button" class="tab on" data-tab="lot" id="tabLot">Lot <span class="n" id="lotCount">0</span></button>
+      <button type="button" class="tab" data-tab="posted" id="tabPosted">Posted <span class="n" id="postedCount">0</span></button>
     </div>
     <input id="q" type="search" placeholder="Search stock / VIN / model…" autocomplete="off" />
     <select id="fStore" title="Store">
@@ -62,7 +70,7 @@
       <div class="body" id="mBody"></div>
       <label class="listed-flag">
         <input type="checkbox" id="listedOnFb" />
-        Listed on Marketplace
+        Posted on Marketplace
       </label>
     </div>
     <div class="row">
@@ -76,6 +84,7 @@
   </div>
   <script src="config.js"></script>
   <script src="vdp-price.js"></script>
+  <script src="inventory-live.js"></script>
   <script src="listing-copy.js"></script>
   <script src="sold-watch.js"></script>
   <script src="photos.js"></script>

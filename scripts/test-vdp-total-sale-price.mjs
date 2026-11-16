@@ -87,6 +87,9 @@ assert.equal(overlay.packs[1].priceMissing, true);
 assert.match(popup, /overlayVdpTotals|overlayLiveTotals/);
 assert.match(popup, /Reading live Total Sale Price/);
 assert.match(popup, /priceWarn|PRICE MISSING|missing Total Sale Price/);
+assert.match(popup, /collectUsedInventory/);
+assert.match(popup, /overlayVdpTotals\(\[selected\]\)/);
+assert.match(popup, /used-inventory/);
 assert.match(scraper, /overlayLiveTotals/);
 assert.doesNotMatch(readFileSync(new URL("../listing-copy.js", import.meta.url), "utf8"), /base \+ DEALER_FEES/);
 
